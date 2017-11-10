@@ -27,7 +27,6 @@ def main():
 def remove_yesterday():
     while True:
         try:
-            print('try')
             file_to_remove = (date.today() - timedelta(days=1)).strftime('%Y-%m-%d') + '.json'
             os.remove(JSON_PATH + file_to_remove)
         except:
@@ -41,7 +40,6 @@ def update_next_days(days):
 
 
 def get_and_save_data_for_date(date):
-    print('start')
     date_str = date.strftime('%Y-%m-%d')
     html_doc = urllib.request.urlopen(BASE_URL + '/kalender/tagestipps/' + date_str)
     soup = BeautifulSoup(html_doc, 'html.parser')
@@ -49,14 +47,16 @@ def get_and_save_data_for_date(date):
     tipps = soup.find(id='tipps-overview')
     tips_object = []
 
+    print(len(tipps.find_all('li')))
+
     for tip in tipps.find_all('li'):
-        print('.')
         tip_url = tip.find('a').attrs['href']
 
         tip_html_doc = urllib.request.urlopen(BASE_URL + tip_url)
         tip_soup = BeautifulSoup(tip_html_doc, 'html.parser')
 
         address = ''.join(tip_soup.find('div', 'mapTipp').text.split(' - ')[:-1])
+        print(address)
 
         lat, lng = get_lat_lng(address)
 
@@ -67,7 +67,6 @@ def get_and_save_data_for_date(date):
             'lat': lat,
             'lng': lng
         }
-        time.sleep(2)
     print('\n')
     json.dump(tips_object, open(JSON_PATH + date_str + '.json','w'))
 
@@ -114,6 +113,7 @@ def try_to_get_location(address, iteration):
         return cached
 
     # If cache failed, query geopy API
+    time.sleep(2)
     new_location = geolocator.geocode(cleaned_address)
     cache_save(address, new_location)
     cache_save(cleaned_address, new_location)

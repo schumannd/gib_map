@@ -29,16 +29,29 @@ display_locations = function(locations) {
     var infowindow = new google.maps.InfoWindow();
 
     var marker, i;
+    var adresses = [];
+    for (var address in locations) {
+      if (locations.hasOwnProperty(address)) {
+        adresses.push(address);
+      }
+    }
 
-    for (i = 0; i < locations.length; i++) {
+    for (var i = 0; i < adresses.length; i++) {
+      var location = locations[adresses[i]];
+
       marker = new google.maps.Marker({
-        position: new google.maps.LatLng(locations[i].lat, locations[i].lng),
+        position: new google.maps.LatLng(location[0].lat, location[0].lng),
         map: map
       });
 
       google.maps.event.addListener(marker, 'click', (function(marker, i) {
         return function() {
-          infowindow.setContent('<a href="' + locations[i].url + '">' + locations[i].title + '</a>');
+          var location_spots = locations[adresses[i]];
+          var content_html = '';
+          for(var j = 0; j < location_spots.length; j++){
+            content_html += '- <a href="' + location_spots[j].url + '">' + location_spots[j].title + '</a><br>'
+          }
+          infowindow.setContent(content_html);
           infowindow.open(map, marker);
         }
       })(marker, i));

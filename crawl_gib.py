@@ -44,9 +44,10 @@ def get_and_save_data_for_date(date):
     soup = BeautifulSoup(html_doc, 'html.parser')
     html_doc.close()
     tipps = soup.find(id='tipps-overview')
-    tips_objects = []
+    final_json = {}
 
     print(len(tipps.find_all('li')))
+    taken_locations = {}
 
     for tip in tipps.find_all('li'):
         tip_url = tip.find('a').attrs['href']
@@ -55,25 +56,35 @@ def get_and_save_data_for_date(date):
         tip_soup = BeautifulSoup(tip_html_doc, 'html.parser')
 
         address = ''.join(tip_soup.find('div', 'mapTipp').text.split(' - ')[:-1])
+        # Lower, strip and remove duplicate spaces
+        address = " ".join(address.strip().lower().split())
         print(address)
 
         lat, lng = get_lat_lng(address)
 
-        tips_object = {
+        # Check if these coordinates are already used. If yes, use that address and append the object.
+
+        tip_object = {
             'title': tip_soup.find('span', 'fc_item_title').text.strip(),
             'url': BASE_URL + tip_url,
-            'address': address,
             'lat': lat,
             'lng': lng
         }
-        tips_objects.append(tips_object)
-    print('\n')
-    json.dump(tips_objects, open(JSON_PATH + date_str + '.json','w'))
+
+        if lat in taken_locations.keys():
+            if lng in taken_locations[lat].keys():
+                final_json[taken_locations[lat][lng]].append(tip_object)
+                continue
+
+        # If no, record them and create the adress with the object object
+        taken_locations[lat] = taken_locations.get(lat, {})
+        taken_locations[lat][lng] = address
+        final_json[address] = [tip_object]
+    json.dump(final_json, open(JSON_PATH + date_str + '.json','w'))
 
 
 def get_lat_lng(address):
-    # Lower, strip and remove duplicate spaces
-    address = " ".join(address.strip().lower().split())
+    
     location = None
     i = 0
     while not location:

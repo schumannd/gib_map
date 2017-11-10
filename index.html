@@ -2,13 +2,19 @@
 <html> 
 <head> 
   <meta http-equiv="content-type" content="text/html; charset=UTF-8" /> 
-  <title>Google Maps Multiple Markers</title> 
+  <title>Gratis In Berlin Map!</title> 
+  <link rel='stylesheet' type='text/css' href='base.css' />
   <script src="http://maps.google.com/maps/api/js?sensor=false" 
           type="text/javascript"></script>
   <script src='lib/jquery.js'></script>
   <script src='main.js'></script>
 </head> 
 <body>
+    <div id='date_picker'>
+        <div data-days=0 class='day_div'>Heute</div>
+        <div data-days=1 class='day_div'>Morgen</div>
+        <div data-days=2 class='day_div'>Übermorgen</div>
+    </div>
   <div id="map" style="width: 100%;height:700px"></div>
 </body>
 </html>

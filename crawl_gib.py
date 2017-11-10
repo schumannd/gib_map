@@ -14,14 +14,13 @@ geolocator = Nominatim()
 
 BASE_URL = 'https://www.gratis-in-berlin.de'
 JSON_PATH = '/var/www/html/gib_map/'
-# JSON_PATH = ''
 CACHE_FILE = 'cache.pickle'
 
 CACHE = None
 
 def main():
     remove_yesterday()
-    update_next_days(7)
+    update_next_days(3)
 
 
 def remove_yesterday():
@@ -45,7 +44,7 @@ def get_and_save_data_for_date(date):
     soup = BeautifulSoup(html_doc, 'html.parser')
     html_doc.close()
     tipps = soup.find(id='tipps-overview')
-    tips_object = []
+    tips_objects = []
 
     print(len(tipps.find_all('li')))
 
@@ -67,12 +66,14 @@ def get_and_save_data_for_date(date):
             'lat': lat,
             'lng': lng
         }
+        tips_objects.append(tips_object)
     print('\n')
-    json.dump(tips_object, open(JSON_PATH + date_str + '.json','w'))
+    json.dump(tips_objects, open(JSON_PATH + date_str + '.json','w'))
 
 
 def get_lat_lng(address):
-    address = address.strip().lower()
+    # Lower, strip and remove duplicate spaces
+    address = " ".join(address.strip().lower().split())
     location = None
     i = 0
     while not location:
@@ -140,4 +141,3 @@ def get_cache():
 
 if __name__ == '__main__':
     main()
-

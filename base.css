@@ -1,0 +1,19 @@
+#date_picker {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1;
+    background-color: white;
+    padding: 10px;
+
+}
+
+.day_div{
+    float: left;
+    background-color: grey;
+    margin-left: 5px;
+    margin-right: 5px;
+    border-radius: 5px;
+    padding: 5px;
+    cursor: pointer;
+}

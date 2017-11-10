@@ -1,51 +1,25 @@
 window.onload = function() {
-    var locations = [
-    {
-        'title': 'asd',
-        'lat': -33.890542,
-        'lng': 151.274856,
-        'link': 'asd'
-    },
-    {
-        'title': 'asd2',
-        'lat': -33.890542,
-        'lng': 151.274856,
-        'link': 'asd'
-    },
-    {
-        'title': 'asd',
-        'lat': -33.923036,
-        'lng': 151.259052,
-        'link': 'asd'
-    },
-    ]
-    display_locations(locations);
+    load_date(new Date())
+
+    $('.day_div').on('click', function() {
+        var one_day = 24 * 60 * 60 * 1000;
+        var num_days = this.dataset.days
+        var date = new Date(new Date().getTime() + num_days * one_day);
+        load_date(date);
+    })
 }
 
-get_data = function() {
-    ajax_call = {
-        type: 'GET',
-        url: 'https://www.gratis-in-berlin.de/heute',
-        success: function(data) {
-            handle_heute_data(data);
-        },
-        error: function(err) {
-            handle_heute_error(err);
-        }
-    }
-    $.ajax(ajax_call);
+load_date = function(date) {
+    var date_string = date.getFullYear() + '-' + (date.getMonth()+1) + '-' + date.getDate();
+    fetch(date_string + '.json')
+      .then(response => response.json())
+      .then(json => {
+        display_locations(json);
+    });
 }
-
-handle_heute_data = function(data) {
-    $('body').html(data);
-}
-
-handle_heute_error = function(err) {
-    asd = err;
-}
-
 
 display_locations = function(locations) {
+    $('#map').empty();
     var map = new google.maps.Map(document.getElementById('map'), {
       zoom: 10,
       center: new google.maps.LatLng(52.520008, 13.404954),
@@ -56,7 +30,7 @@ display_locations = function(locations) {
 
     var marker, i;
 
-    for (i = 0; i < locations.length; i++) {  
+    for (i = 0; i < locations.length; i++) {
       marker = new google.maps.Marker({
         position: new google.maps.LatLng(locations[i].lat, locations[i].lng),
         map: map
@@ -64,7 +38,7 @@ display_locations = function(locations) {
 
       google.maps.event.addListener(marker, 'click', (function(marker, i) {
         return function() {
-          infowindow.setContent('<a href="google.com">' + locations[i].title + '</a>');
+          infowindow.setContent('<a href="' + locations[i].url + '">' + locations[i].title + '</a>');
           infowindow.open(map, marker);
         }
       })(marker, i));

@@ -15,7 +15,12 @@ load_date = function(date) {
       .then(response => response.json())
       .then(json => {
         display_locations(json);
-    });
+    })
+      .catch(error => {
+        $('#date_picker').remove();
+        $('#map').html(`<h3>Chrome is not supported. Make this world a better place and <a href='https://www.mozilla.org/en-US/firefox/new/'>use Firefox</a></h1>
+          <a href='https://www.reddit.com/r/firefox/comments/5l8v3a/im_a_chrome_user_why_should_i_use_firefox/'>Why</a>`);
+      });
 }
 
 display_locations = function(locations) {
@@ -38,10 +43,16 @@ display_locations = function(locations) {
 
     for (var i = 0; i < adresses.length; i++) {
       var location = locations[adresses[i]];
+      if( adresses[i] == 'berlin'){
+        var icon = 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
+      } else {
+        var icon = 'http://maps.google.com/mapfiles/ms/icons/red-dot.png';
+      }
 
       marker = new google.maps.Marker({
         position: new google.maps.LatLng(location[0].lat, location[0].lng),
-        map: map
+        map: map,
+        icon: icon
       });
 
       google.maps.event.addListener(marker, 'click', (function(marker, i) {

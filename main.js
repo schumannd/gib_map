@@ -43,10 +43,10 @@ display_locations = function(locations) {
 
     for (var i = 0; i < adresses.length; i++) {
       var location = locations[adresses[i]];
-      if( adresses[i] == 'berlin'){
-        var icon = 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
+      if( location[0].lat == 52.5170365 && location[0].lng == 13.3888599){
+        var icon = 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png';
       } else {
-        var icon = 'http://maps.google.com/mapfiles/ms/icons/red-dot.png';
+        var icon = 'https://maps.google.com/mapfiles/ms/icons/red-dot.png';
       }
 
       marker = new google.maps.Marker({

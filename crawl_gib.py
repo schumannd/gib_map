@@ -5,9 +5,7 @@ from datetime import date, timedelta
 import json
 import time
 import os
-
 import _pickle as pickle
-
 
 geolocator = Nominatim()
 
@@ -19,6 +17,10 @@ CACHE_FILE = 'cache.pickle'
 CACHE = None
 
 def main():
+    abspath = os.path.abspath(__file__)
+    dname = os.path.dirname(abspath)
+
+    os.chdir(dname)
     remove_yesterday()
     update_next_days(3)
 

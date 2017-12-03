@@ -36,8 +36,14 @@ def remove_yesterday():
 
 def update_next_days(days):
     today = date.today()
+    file_names = ['heute', 'morgen', 'uebermorgen'];
     for day in range(days):
-        get_and_save_data_for_date(today + timedelta(days=day))
+        json_data = get_and_save_data_for_date(today + timedelta(days=day))
+
+        # New save as js file.
+        js_file_content = "var {0} = '{1}';".format(file_names[day], json.dumps(json_data))
+        with open(JSON_PATH + file_names[day] + '.js', 'w') as f:
+            f.write(js_file_content);
 
 
 def get_and_save_data_for_date(date):
@@ -83,6 +89,7 @@ def get_and_save_data_for_date(date):
         taken_locations[lat][lng] = address
         final_json[address] = [tip_object]
     json.dump(final_json, open(JSON_PATH + date_str + '.json','w'))
+    return final_json
 
 
 def get_lat_lng(address):

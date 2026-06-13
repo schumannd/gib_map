@@ -3,6 +3,7 @@ var BERLIN_CENTER_LNG = 13.3888599;
 var currentMap = null;
 var currentDayIndex = 0;
 var currentSearchQuery = '';
+var markerCluster = null;
 var EXPECTED_DAYS = 7;
 
 window.onload = function() {
@@ -313,6 +314,7 @@ function displayLocations(locations) {
   var addresses = Object.keys(locations);
   var bounds = new google.maps.LatLngBounds();
   var hasMarkers = false;
+  var markers = [];
 
   addresses.forEach(function(address, index) {
     var locationSpots = locations[address];
@@ -326,12 +328,12 @@ function displayLocations(locations) {
 
     var marker = new google.maps.Marker({
       position: position,
-      map: currentMap,
       title: locationSpots[0].title,
       icon: isApproximate
         ? 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
         : 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
     });
+    markers.push(marker);
 
     google.maps.event.addListener(marker, 'click', (function(markerRef, addressKey) {
       return function() {
@@ -348,6 +350,22 @@ function displayLocations(locations) {
       };
     })(marker, address));
   });
+
+  if (markerCluster) {
+    markerCluster.clearMarkers();
+    markerCluster = null;
+  }
+
+  if (markers.length && typeof markerClusterer !== 'undefined' && markerClusterer.MarkerClusterer) {
+    markerCluster = new markerClusterer.MarkerClusterer({
+      map: currentMap,
+      markers: markers
+    });
+  } else {
+    markers.forEach(function(marker) {
+      marker.setMap(currentMap);
+    });
+  }
 
   if (hasMarkers) {
     currentMap.fitBounds(bounds, 48);

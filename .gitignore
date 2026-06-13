@@ -15,7 +15,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+lib/*
+!lib/jquery.js
 lib64/
 parts/
 sdist/
@@ -26,8 +27,6 @@ wheels/
 *.egg
 
 # PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
@@ -100,11 +99,11 @@ ENV/
 # mypy
 .mypy_cache/
 
-# Crawler runtime state
+# Crawler runtime / generated data (deployed via gh-pages, not main)
 crawl_state.json
 crawl.log
-
-# Generated daily JSON (days.js is committed for a working default site)
+cache.pickle
+days.js
 20??-??-??.json
 heute.js
 morgen.js

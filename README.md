@@ -33,100 +33,82 @@ Rough math for a **first run** (empty geocoding cache):
 | Request delay | 0.5 s | ~7 min |
 | Geocoding (cache miss) | 2 s | ~30 min (fewer if addresses repeat) |
 
-**Expect 2–4 hours** for the first full 7-day crawl on GitHub Actions. Your log showing ~4 listings in the first 40 s is normal — that's mostly fetch time, not slowness.
+**Expect 2–4 hours** for the first full 7-day crawl on GitHub Actions.
 
-**Later runs** are much faster: `cache.pickle` skips most geocoding, and many listings share addresses. Daily runs often finish in **30–60 minutes**, sometimes less.
+**Later runs** are much faster: the geocoding cache skips most lookups. Daily runs often finish in **30–60 minutes**.
 
-The workflow timeout is 6 hours, which is enough even with Cloudflare retry waits.
+The workflow timeout is 6 hours.
 
 ## Deploying with GitHub Actions + GitHub Pages (recommended, free)
 
-This runs the crawler on a schedule and hosts the map as a static site — no server required.
+**`main`** holds source code only. **`gh-pages`** holds the live site (HTML + generated `days.js`). Crawl data is **not** committed to `main`.
 
 ### 1. Push the repository to GitHub
 
-If you haven't already:
-
 ```bash
-git remote add origin git@github.com:YOUR_USER/gib_map.git
-git push -u origin master
+git push -u origin main
 ```
 
-The workflow file is already included at [`.github/workflows/crawl.yml`](.github/workflows/crawl.yml).
+The workflow is at [`.github/workflows/crawl.yml`](.github/workflows/crawl.yml).
 
 ### 2. Enable GitHub Pages
 
-1. Open your repo on GitHub → **Settings** → **Pages**
-2. Under **Build and deployment** → **Source**, choose **Deploy from a branch**
-3. Branch: **master** (or **main**), folder: **/ (root)**
+1. Repo → **Settings** → **Pages**
+2. **Source:** Deploy from a branch
+3. Branch: **`gh-pages`** / **/ (root)**
 4. Save
 
-After a minute or two the map will be live at:
+The map will be at `https://YOUR_USER.github.io/gib_map/` after the first successful workflow run.
 
-`https://YOUR_USER.github.io/gib_map/`
+> If Pages was previously set to **`main`**, change it to **`gh-pages`**.
 
-### 3. Enable the scheduled crawler
+### 3. Run the crawler
 
-GitHub Actions runs automatically from the workflow:
+**Actions** → **Crawl and deploy map** → **Run workflow**
 
-- **Daily** at 05:00 UTC (`cron: '0 5 * * *'`)
-- On **manual trigger**: repo → **Actions** → **Crawl and update map data** → **Run workflow**
-
-Each successful run commits updated `days.js` and `cache.pickle`. Pages picks up the new data on the next deploy (usually within a minute).
-
-**While a crawl is running:** the workflow now commits after **each completed day**, so the map updates incrementally (you may still see the "1 von 7 Tagen" banner until all days finish).
-
-**First run:** trigger the workflow manually and let it run — see [How long does a crawl take?](#how-long-does-a-crawl-take) above. Watch the log for lines like `[42/125]` to track progress within each day.
+- Runs daily at 05:00 UTC
+- Crawls, then deploys static files to **`gh-pages`**
+- Geocoding cache persists via GitHub Actions cache (not in git)
 
 ### 4. Google Maps API key
 
-The map uses the Google Maps JavaScript API. The **"Oops! Something went wrong"** error almost always means the API key does not allow your Pages URL.
+The **"Oops! Something went wrong"** error means the API key does not allow your Pages URL.
 
 In [Google Cloud Console](https://console.cloud.google.com/):
 
-1. Enable **Maps JavaScript API** (and ensure billing is enabled on the project)
-2. Open your API key → **Application restrictions** → **HTTP referrers**
-3. Add your Pages URL, e.g. `https://schumannd.github.io/*` (replace with your username)
-4. Optionally add `http://localhost:*` for local testing
-5. Replace the key in `index.html` if you use a different one
+1. Enable **Maps JavaScript API** (billing account required; see note below)
+2. API key → **HTTP referrers** → add `https://YOUR_USER.github.io/*`
+3. For local dev: `http://localhost/*`
+4. Put the key in `index.html` on **`main`** and re-run the workflow to deploy
 
-Changes can take a few minutes to propagate. Hard-refresh the page (Ctrl+Shift+R) after updating.
+Google requires a billing account but gives ~$200/month free Maps credit — this site typically costs **$0**.
 
 ### 5. Workflow details
 
-The workflow (`.github/workflows/crawl.yml`):
-
 | Setting | Value |
 |---------|-------|
-| Runner | `ubuntu-latest` |
-| Timeout | 6 hours (enough for a full 7-day crawl) |
-| Throttle wait | 10 minutes (`GIB_THROTTLE_WAIT_MINUTES`) |
-| Committed files | `days.js`, `cache.pickle` |
+| Deploy target | `gh-pages` branch (not `main`) |
+| Geocoding cache | GitHub Actions cache (`cache.pickle`) |
+| Timeout | 6 hours |
 
-To change the schedule, edit the `cron` line in the workflow file. [Cron syntax helper](https://crontab.guru/).
-
-**Private repos:** GitHub Actions minutes count against your quota. Public repos get free unlimited minutes for standard runners.
-
-## Generated files
+## Generated files (not on `main`)
 
 | File | Purpose |
 |------|---------|
-| `days.js` | Frontend data for all crawled days (committed by Actions) |
-| `YYYY-MM-DD.json` | Raw data per day (local only, gitignored) |
-| `crawl_state.json` | Resume checkpoint (temporary, gitignored) |
-| `cache.pickle` | Geocoding cache (committed by Actions) |
+| `days.js` | Frontend data (deployed to `gh-pages` only) |
+| `YYYY-MM-DD.json` | Raw data per day (local / CI only) |
+| `crawl_state.json` | Resume checkpoint (temporary) |
+| `cache.pickle` | Geocoding cache (Actions cache only) |
 
 ## Troubleshooting
 
-- **Empty map** — run the **Crawl and update map data** workflow manually and confirm `days.js` was committed.
-- **Crawler stops mid-run** — re-run the workflow; it resumes from `crawl_state.json` within the same job. If the job timed out, just trigger it again.
-- **Workflow failed** — open **Actions** → failed run → read logs. Common causes: Cloudflare throttling (increase `GIB_THROTTLE_WAIT_MINUTES` in the workflow), Nominatim rate limits.
-- **Pages shows old data** — check that the crawl workflow committed to the same branch Pages deploys from.
-- **Map loads but no markers** — Google Maps API key may not allow your `github.io` domain (see [Google Maps API key](#4-google-maps-api-key)).
-- **Only 3 events showing** — old sample `days.js` still deployed; wait for the workflow to commit after day 1, then hard-refresh.
-- **"Noch keine Daten geladen" overlay** — fixed in latest `main.js`; pull/update and redeploy.
+- **Empty map** — run **Crawl and deploy map**; confirm Pages uses **`gh-pages`**
+- **Commit step failed on `main`** — old workflow; pull latest `main` (data deploys to `gh-pages` now)
+- **Only 3 events** — old deploy; re-run workflow after crawl completes
+- **Map error** — fix API key referrers for `github.io` (see above)
+- **Crawler stops mid-run** — re-run workflow; resumes within the same job via `crawl_state.json`
 
 ## Alternatives
 
-- **Local cron + GitHub Pages** — run `python crawl_gib.py` on your machine on a schedule, commit and push `days.js` yourself.
-- **PythonAnywhere** — paid plans can run the crawler, but free accounts block outbound access to `gratis-in-berlin.de` (proxy 403).
+- **Local cron** — crawl locally, manually copy files to any static host
+- **PythonAnywhere** — paid plans only (free tier blocks the target site)

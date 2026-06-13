@@ -1,4 +1,4 @@
-name: Crawl and update map data
+name: Crawl and deploy map
 
 on:
   schedule:
@@ -10,17 +10,24 @@ permissions:
   contents: write
 
 concurrency:
-  group: crawl
+  group: crawl-deploy
   cancel-in-progress: false
 
 jobs:
-  crawl:
+  crawl-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Restore geocoding cache
+        uses: actions/cache@v4
+        with:
+          path: cache.pickle
+          key: geocode-cache-v1
+          restore-keys: geocode-cache-v1
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,22 +38,22 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Configure git for commits
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
       - name: Run crawler
         env:
           PYTHONUNBUFFERED: '1'
           GIB_THROTTLE_WAIT_MINUTES: '10'
-          GIB_AUTO_COMMIT: '1'
         run: python -u crawl_gib.py
 
-      - name: Commit any remaining changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Prepare static site
+        run: |
+          mkdir -p _site/lib
+          cp index.html main.js base.css days.js _site/
+          cp lib/jquery.js _site/lib/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          commit_message: Update crawl data
-          file_pattern: days.js cache.pickle
-          commit_user_name: github-actions[bot]
-          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: _site
+          force_orphan: true

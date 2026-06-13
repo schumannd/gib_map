@@ -304,3 +304,51 @@ body.has-status-banner #map {
     right: 16px;
   }
 }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111827;
+    --surface: #1f2937;
+    --text: #f3f4f6;
+    --muted: #9ca3af;
+    --accent: #f87171;
+    --accent-dark: #ef4444;
+    --border: #374151;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  #header,
+  #legend,
+  #site-footer,
+  .day_div {
+    background: rgba(31, 41, 55, 0.96);
+  }
+
+  #stats span {
+    background: #111827;
+  }
+
+  .day_div.active .day-count {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  #empty-state code {
+    background: #374151;
+  }
+
+  .status-banner.warning {
+    background: #451a03;
+    border-color: #ea580c;
+    color: #fdba74;
+  }
+
+  .status-banner.info {
+    background: #1e3a8a;
+    border-color: #3b82f6;
+    color: #bfdbfe;
+  }
+
+  .info-window a {
+    color: #fca5a5;
+  }
+}

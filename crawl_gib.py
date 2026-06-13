@@ -6,6 +6,7 @@ import json
 import time
 import os
 import _pickle as pickle
+import requests as std_requests
 
 geolocator = Nominatim(user_agent='gib_map_crawler')
 
@@ -20,6 +21,20 @@ FETCH_RETRIES = 5
 REQUEST_DELAY_SECONDS = 0.5
 GEOCODE_DELAY_SECONDS = 2
 THROTTLE_WAIT_MINUTES = int(os.environ.get('GIB_THROTTLE_WAIT_MINUTES', '5'))
+FETCH_BACKENDS = [
+    backend.strip()
+    for backend in os.environ.get('GIB_FETCH_BACKEND', 'curl_cffi,curl_cffi_plain,requests').split(',')
+    if backend.strip()
+]
+
+FETCH_HEADERS = {
+    'User-Agent': (
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    ),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+}
 
 WEEKDAYS_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 
@@ -147,20 +162,22 @@ def fetch_url(url):
         throttled = False
 
         for attempt in range(FETCH_RETRIES):
-            try:
-                response = http.get(url, impersonate='chrome120', timeout=30)
-            except http.errors.RequestsError as err:
-                print('Request error ({0}/{1}): {2}'.format(attempt + 1, FETCH_RETRIES, err))
-                if attempt + 1 >= FETCH_RETRIES:
-                    throttled = True
-                    break
-                time.sleep(3 * (attempt + 1))
-                continue
+            for backend in FETCH_BACKENDS:
+                try:
+                    html = fetch_with_backend(url, backend)
+                except Exception as err:
+                    if is_proxy_blocked_error(err):
+                        raise proxy_blocked_error(url)
+                    print('Request error ({0}/{1}, {2}): {3}'.format(
+                        attempt + 1, FETCH_RETRIES, backend, err))
+                    continue
 
-            if not is_cloudflare_challenge(response.text):
-                return response.text
+                if not is_cloudflare_challenge(html):
+                    return html
 
-            print('Cloudflare challenge ({0}/{1})'.format(attempt + 1, FETCH_RETRIES))
+                print('Cloudflare challenge ({0}/{1}, {2})'.format(
+                    attempt + 1, FETCH_RETRIES, backend))
+
             if attempt + 1 >= FETCH_RETRIES:
                 throttled = True
                 break
@@ -170,6 +187,74 @@ def fetch_url(url):
             raise RuntimeError('Failed to fetch {0}'.format(url))
 
         wait_for_throttle(url)
+
+
+def get_proxies():
+    proxy = (
+        os.environ.get('https_proxy') or os.environ.get('HTTPS_PROXY') or
+        os.environ.get('http_proxy') or os.environ.get('HTTP_PROXY')
+    )
+    if proxy:
+        return {'http': proxy, 'https': proxy}
+    return None
+
+
+def fetch_with_backend(url, backend):
+    if backend == 'curl_cffi':
+        return fetch_with_curl_cffi(url, impersonate='chrome120')
+    if backend == 'curl_cffi_plain':
+        return fetch_with_curl_cffi(url, impersonate=None)
+    if backend == 'requests':
+        return fetch_with_requests(url)
+    raise ValueError('Unknown fetch backend: {0}'.format(backend))
+
+
+def fetch_with_curl_cffi(url, impersonate='chrome120'):
+    kwargs = {'timeout': 30, 'headers': FETCH_HEADERS}
+    proxies = get_proxies()
+    if proxies:
+        kwargs['proxies'] = proxies
+    if impersonate:
+        kwargs['impersonate'] = impersonate
+    response = http.get(url, **kwargs)
+    return response.text
+
+
+def fetch_with_requests(url):
+    response = std_requests.get(
+        url,
+        headers=FETCH_HEADERS,
+        proxies=get_proxies(),
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.text
+
+
+def is_proxy_blocked_error(err):
+    message = str(err)
+    return (
+        ('CONNECT tunnel failed' in message and '403' in message) or
+        'Tunnel connection failed: 403' in message or
+        '403 Forbidden' in message
+    )
+
+
+def proxy_blocked_error(url):
+    host = BASE_URL.replace('https://', '').replace('http://', '')
+    return RuntimeError(
+        'Outbound access to {0} is blocked (HTTP proxy returned 403).\n\n'
+        'On PythonAnywhere FREE accounts, only allowlisted sites are reachable — '
+        '{1} is not on that list.\n\n'
+        'Options:\n'
+        '  1. Upgrade to a paid PythonAnywhere plan (unrestricted outbound access), '
+        'then open a new Bash console and retry.\n'
+        '  2. Run the crawler locally (or via GitHub Actions) and upload the generated '
+        'days.js and YYYY-MM-DD.json files to PythonAnywhere.\n'
+        '  3. On paid accounts, try: export GIB_FETCH_BACKEND=requests\n\n'
+        'See https://help.pythonanywhere.com/pages/403ForbiddenError/\n'
+        'Failed URL: {2}'.format(host, host, url)
+    )
 
 
 def wait_for_throttle(context):

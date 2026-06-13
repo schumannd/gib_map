@@ -25,9 +25,41 @@ If the crawl stops midway, run `python crawl_gib.py` again — it continues wher
 
 ## Deploying to PythonAnywhere
 
-These steps assume a PythonAnywhere **Web** + **Tasks** setup on a paid plan (scheduled tasks require at least a Hacker plan; check current PythonAnywhere limits).
+PythonAnywhere is a good place to **host the static map**. Running the **crawler** there depends on your account type.
 
-### 1. Upload the project
+### Can the crawler run on PythonAnywhere?
+
+| Account | Crawler on PA? | Why |
+|---------|----------------|-----|
+| **Free** | No | Outbound HTTP is restricted to an [allowlist](https://help.pythonanywhere.com/pages/403ForbiddenError/). `gratis-in-berlin.de` is not on it → `CONNECT tunnel failed, response 403`. |
+| **Paid** (Hacker+) | Usually yes | Unrestricted outbound access. Open a **new** Bash console after upgrading. |
+
+If you see `curl: (56) CONNECT tunnel failed, response 403`, you are hitting the proxy block. The crawler now tries several fetch backends and prints a clearer error message.
+
+On **paid** accounts, if `curl_cffi` still fails through the platform proxy, force the `requests` backend:
+
+```bash
+export GIB_FETCH_BACKEND=requests
+python crawl_gib.py
+```
+
+### Recommended setup for free accounts
+
+Run the crawler **locally** or in **GitHub Actions**, then upload the generated files to PythonAnywhere:
+
+```bash
+# Local machine
+python crawl_gib.py
+scp days.js cache.pickle 20*.json YOUR_USERNAME@ssh.pythonanywhere.com:/home/YOUR_USERNAME/gib_map/
+```
+
+Or commit `days.js` to git and `git pull` on PythonAnywhere.
+
+### Hosting on PythonAnywhere
+
+These steps assume a **Web** app (and **Tasks** on a paid plan for scheduled crawls).
+
+#### 1. Upload the project
 
 In a Bash console on PythonAnywhere:
 
@@ -42,7 +74,7 @@ pip install -r requirements.txt
 
 Or upload the files via the **Files** tab into `/home/YOUR_USERNAME/gib_map`.
 
-### 2. Run the crawler once manually
+#### 2. Run the crawler (paid accounts only)
 
 ```bash
 cd ~/gib_map
@@ -52,14 +84,15 @@ python crawl_gib.py
 
 This creates `days.js` and dated `YYYY-MM-DD.json` files. Re-run after interruptions — progress is saved in `crawl_state.json`.
 
-Optional: increase the throttle wait if you hit rate limits often:
+Optional environment variables:
 
 ```bash
-export GIB_THROTTLE_WAIT_MINUTES=10
+export GIB_THROTTLE_WAIT_MINUTES=10   # wait longer when rate-limited
+export GIB_FETCH_BACKEND=requests   # use on PythonAnywhere if curl_cffi fails
 python crawl_gib.py
 ```
 
-### 3. Serve the map as a static site
+#### 3. Serve the map as a static site
 
 1. Open the **Web** tab → **Add a new web app** → **Manual configuration** → choose your Python version.
 2. Under **Static files**, add:
@@ -73,7 +106,9 @@ python crawl_gib.py
 
 Your map will be available at `https://YOUR_USERNAME.pythonanywhere.com/`.
 
-### 4. Schedule daily crawls
+### 4. Schedule daily crawls (paid accounts)
+
+Only works if outbound access to `gratis-in-berlin.de` succeeds from your account (see above).
 
 1. Open the **Tasks** tab.
 2. Create a **Scheduled task** (daily), e.g. `06:00` UTC:
@@ -101,5 +136,6 @@ The map uses the Google Maps JavaScript API. Replace the key in `index.html` wit
 
 - **Empty map** — run `python crawl_gib.py` and confirm `days.js` exists.
 - **Crawler stops mid-run** — run it again; it resumes from `crawl_state.json`.
+- **`CONNECT tunnel failed, response 403` on PythonAnywhere** — free account proxy block; run crawler locally and upload `days.js`, or upgrade to a paid plan.
 - **Cloudflare / throttling** — the crawler waits and retries; increase `GIB_THROTTLE_WAIT_MINUTES` if needed.
 - **Geocoding errors** — check `crawl.log`; Nominatim may rate-limit heavy usage.

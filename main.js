@@ -427,20 +427,15 @@ function loadDate(dayIndex, options) {
 }
 
 function trackDayView(day) {
-  if (typeof window.gibTrack !== 'function') {
-    if (window.GIB_ANALYTICS && window.gibTrackQueue) {
-      window.gibTrackQueue.push({
-        path: window.location.pathname + '?day=' + currentDayIndex,
-        title: day.label
-      });
-    }
+  if (!window.goatcounter || !window.goatcounter.count) {
     return;
   }
 
-  window.gibTrack(
-    window.location.pathname + '?day=' + currentDayIndex,
-    day.label
-  );
+  window.goatcounter.count({
+    path: window.location.pathname + '?day=' + currentDayIndex,
+    title: day.label,
+    event: true
+  });
 }
 
 function filterLocationsByQuery(locations, query) {

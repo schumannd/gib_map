@@ -80,7 +80,7 @@ jobs:
             exit 1
           fi
           mkdir -p _site/lib
-          cp index.html main.js base.css days.js analytics.js _site/
+          cp index.html main.js base.css days.js _site/
           cp lib/jquery.js _site/lib/
           echo "Deploying $(wc -c < days.js) bytes of days.js"
 

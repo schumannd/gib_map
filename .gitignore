@@ -99,3 +99,13 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# Crawler runtime state
+crawl_state.json
+crawl.log
+
+# Generated daily JSON (days.js is committed for a working default site)
+20??-??-??.json
+heute.js
+morgen.js
+uebermorgen.js

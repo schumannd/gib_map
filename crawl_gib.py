@@ -12,6 +12,16 @@ geolocator = Nominatim(user_agent='gib_map_crawler')
 BASE_URL = 'https://www.gratis-in-berlin.de'
 JSON_PATH = os.path.dirname(os.path.abspath(__file__)) + os.sep
 CACHE_FILE = 'cache.pickle'
+STATE_FILE = 'crawl_state.json'
+DAYS_JS_FILE = 'days.js'
+
+CRAWL_DAYS = 7
+FETCH_RETRIES = 5
+REQUEST_DELAY_SECONDS = 0.5
+GEOCODE_DELAY_SECONDS = 2
+THROTTLE_WAIT_MINUTES = int(os.environ.get('GIB_THROTTLE_WAIT_MINUTES', '5'))
+
+WEEKDAYS_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 
 CACHE = None
 
@@ -22,20 +32,151 @@ class CachedLocation(object):
         self.longitude = longitude
 
 
-def fetch_url(url, retries=5):
-    for attempt in range(retries):
+def main():
+    abspath = os.path.abspath(__file__)
+    dname = os.path.dirname(abspath)
+    os.chdir(dname)
+
+    remove_yesterday()
+    crawl_days(CRAWL_DAYS)
+
+
+def remove_yesterday():
+    while True:
         try:
-            response = http.get(url, impersonate='chrome120', timeout=30)
-        except http.errors.RequestsError:
-            time.sleep(3 * (attempt + 1))
+            file_to_remove = (date.today() - timedelta(days=1)).strftime('%Y-%m-%d') + '.json'
+            os.remove(JSON_PATH + file_to_remove)
+        except OSError:
+            break
+
+
+def crawl_days(days):
+    state = load_state()
+    start_day = state.get('day_offset', 0)
+    today = date.today()
+
+    for day_offset in range(start_day, days):
+        target_date = today + timedelta(days=day_offset)
+        resume_tip_index = state.get('tip_index', 0) if day_offset == start_day else 0
+        partial_data = state.get('partial_data', {}) if day_offset == start_day else {}
+
+        print('Crawling day {0}/{1}: {2}'.format(
+            day_offset + 1, days, target_date.strftime('%Y-%m-%d')))
+
+        day_data = get_and_save_data_for_date(
+            target_date,
+            start_tip_index=resume_tip_index,
+            partial_data=partial_data,
+        )
+
+        save_state({
+            'day_offset': day_offset + 1,
+            'tip_index': 0,
+            'partial_data': {},
+        })
+        write_days_js(days)
+
+    clear_state()
+    write_days_js(days)
+    print('Crawl complete.')
+
+
+def load_state():
+    if not os.path.exists(STATE_FILE):
+        return {}
+
+    with open(STATE_FILE, 'r') as f:
+        state = json.load(f)
+
+    if state:
+        print('Resuming from day {0}, tip {1}'.format(
+            state.get('day_offset', 0) + 1,
+            state.get('tip_index', 0) + 1,
+        ))
+
+    return state
+
+
+def save_state(state):
+    with open(STATE_FILE, 'w') as f:
+        json.dump(state, f)
+
+
+def clear_state():
+    if os.path.exists(STATE_FILE):
+        os.remove(STATE_FILE)
+
+
+def day_label(day_offset, target_date):
+    if day_offset == 0:
+        return 'Heute'
+    if day_offset == 1:
+        return 'Morgen'
+    weekday = WEEKDAYS_DE[target_date.weekday()]
+    return '{0} {1}.'.format(weekday, target_date.strftime('%d.%m'))
+
+
+def write_days_js(days):
+    today = date.today()
+    days_array = []
+
+    for day_offset in range(days):
+        target_date = today + timedelta(days=day_offset)
+        date_str = target_date.strftime('%Y-%m-%d')
+        json_path = JSON_PATH + date_str + '.json'
+
+        if not os.path.exists(json_path):
             continue
 
-        if not is_cloudflare_challenge(response.text):
-            return response.text
+        with open(json_path, 'r') as f:
+            data = json.load(f)
 
-        time.sleep(3 * (attempt + 1))
+        days_array.append({
+            'date': date_str,
+            'label': day_label(day_offset, target_date),
+            'data': data,
+        })
 
-    raise RuntimeError('Failed to fetch {0}'.format(url))
+    js_content = 'var days = {0};'.format(json.dumps(days_array))
+    with open(JSON_PATH + DAYS_JS_FILE, 'w') as f:
+        f.write(js_content)
+
+
+def fetch_url(url):
+    while True:
+        throttled = False
+
+        for attempt in range(FETCH_RETRIES):
+            try:
+                response = http.get(url, impersonate='chrome120', timeout=30)
+            except http.errors.RequestsError as err:
+                print('Request error ({0}/{1}): {2}'.format(attempt + 1, FETCH_RETRIES, err))
+                if attempt + 1 >= FETCH_RETRIES:
+                    throttled = True
+                    break
+                time.sleep(3 * (attempt + 1))
+                continue
+
+            if not is_cloudflare_challenge(response.text):
+                return response.text
+
+            print('Cloudflare challenge ({0}/{1})'.format(attempt + 1, FETCH_RETRIES))
+            if attempt + 1 >= FETCH_RETRIES:
+                throttled = True
+                break
+            time.sleep(3 * (attempt + 1))
+
+        if not throttled:
+            raise RuntimeError('Failed to fetch {0}'.format(url))
+
+        wait_for_throttle(url)
+
+
+def wait_for_throttle(context):
+    wait_seconds = THROTTLE_WAIT_MINUTES * 60
+    print('Throttled on {0}. Waiting {1} minutes before retrying...'.format(
+        context, THROTTLE_WAIT_MINUTES))
+    time.sleep(wait_seconds)
 
 
 def is_cloudflare_challenge(html):
@@ -44,52 +185,27 @@ def is_cloudflare_challenge(html):
     return 'moment' in title or len(html) < 20000
 
 
-def main():
-    abspath = os.path.abspath(__file__)
-    dname = os.path.dirname(abspath)
-
-    os.chdir(dname)
-    remove_yesterday()
-    update_next_days(3)
-
-
-def remove_yesterday():
-    while True:
-        try:
-            file_to_remove = (date.today() - timedelta(days=1)).strftime('%Y-%m-%d') + '.json'
-            os.remove(JSON_PATH + file_to_remove)
-        except:
-            break
-
-
-def update_next_days(days):
-    today = date.today()
-    file_names = ['heute', 'morgen', 'uebermorgen'];
-    for day in range(days):
-        json_data = get_and_save_data_for_date(today + timedelta(days=day))
-
-        # New save as js file.
-        js_file_content = "var {0} = {1};".format(file_names[day], json.dumps(json_data))
-        with open(JSON_PATH + file_names[day] + '.js', 'w') as f:
-            f.write(js_file_content);
-
-
-def get_and_save_data_for_date(date):
-    date_str = date.strftime('%Y-%m-%d')
+def get_and_save_data_for_date(target_date, start_tip_index=0, partial_data=None):
+    date_str = target_date.strftime('%Y-%m-%d')
     html_doc = fetch_url(BASE_URL + '/kalender/tagestipps/' + date_str)
     soup = BeautifulSoup(html_doc, 'html.parser')
     tipps = soup.find(id='tipps-overview')
-    final_json = {}
 
     if not tipps:
         raise RuntimeError('Could not find tipps-overview for {0}'.format(date_str))
 
-    print(len(tipps.find_all('li')))
-    taken_locations = {}
+    tip_elements = tipps.find_all('li')
+    print('{0} listings found'.format(len(tip_elements)))
 
-    for tip in tipps.find_all('li'):
+    final_json = partial_data or {}
+    taken_locations = rebuild_taken_locations(final_json)
+
+    for tip_index, tip in enumerate(tip_elements):
+        if tip_index < start_tip_index:
+            continue
+
         tip_url = tip.find('a').attrs['href']
-        time.sleep(0.5)
+        time.sleep(REQUEST_DELAY_SECONDS)
 
         tip_html_doc = fetch_url(BASE_URL + tip_url)
         tip_soup = BeautifulSoup(tip_html_doc, 'html.parser')
@@ -100,89 +216,107 @@ def get_and_save_data_for_date(date):
             continue
 
         address = ''.join(map_tipp.text.split(' - ')[:-1])
-        # Lower, strip and remove duplicate spaces
-        address = " ".join(address.strip().lower().split())
-        print(address.encode('utf-8'))
+        address = ' '.join(address.strip().lower().split())
+        print('[{0}/{1}] {2}'.format(tip_index + 1, len(tip_elements), address))
 
         lat, lng = get_lat_lng(address)
-
-        # Check if these coordinates are already used. If yes, use that address and append the object.
 
         tip_object = {
             'title': title_el.text.strip(),
             'url': BASE_URL + tip_url,
             'lat': lat,
-            'lng': lng
+            'lng': lng,
         }
 
-        if lat in taken_locations.keys():
-            if lng in taken_locations[lat].keys():
-                final_json[taken_locations[lat][lng]].append(tip_object)
-                continue
+        if lat in taken_locations and lng in taken_locations[lat]:
+            final_json[taken_locations[lat][lng]].append(tip_object)
+        else:
+            taken_locations.setdefault(lat, {})
+            taken_locations[lat][lng] = address
+            final_json.setdefault(address, []).append(tip_object)
 
-        # If no, record them and create the adress with the object object
-        taken_locations[lat] = taken_locations.get(lat, {})
-        taken_locations[lat][lng] = address
-        final_json[address] = [tip_object]
-    json.dump(final_json, open(JSON_PATH + date_str + '.json','w'))
+        with open(JSON_PATH + date_str + '.json', 'w') as f:
+            json.dump(final_json, f)
+
+        save_state({
+            'day_offset': (target_date - date.today()).days,
+            'tip_index': tip_index + 1,
+            'partial_data': final_json,
+        })
+
     return final_json
 
 
-def get_lat_lng(address):
-    
-    location = None
-    i = 0
-    while not location:
-        location = try_to_get_location(address, i)
-        i += 1
+def rebuild_taken_locations(final_json):
+    taken_locations = {}
+    for address, tip_list in final_json.items():
+        if not tip_list:
+            continue
+        lat = tip_list[0]['lat']
+        lng = tip_list[0]['lng']
+        taken_locations.setdefault(lat, {})
+        taken_locations[lat][lng] = address
+    return taken_locations
 
+
+def get_lat_lng(address):
+    location = None
+    iteration = 0
+    while not location:
+        location = try_to_get_location(address, iteration)
+        iteration += 1
     return location.latitude, location.longitude
 
 
 def try_to_get_location(address, iteration):
     wrong_words_for_str = ['starße', 'strasße', 'strße', 'strsse', 'straß1']
-    if any([word in address for word in wrong_words_for_str]):
+    if any(word in address for word in wrong_words_for_str):
         for wrong_str in wrong_words_for_str:
             address = address.replace(wrong_str, 'str')
 
-    # Try several adress cleaning steps
     if iteration == 0:
         cleaned_address = address
-    if iteration == 1:
+    elif iteration == 1:
         cleaned_address = address.replace('s-bahnbogen', '')
-    if iteration == 2:
+    elif iteration == 2:
         cleaned_address = address.replace('haus', '')
-    if iteration == 3:
+    elif iteration == 3:
         cleaned_address = address.split(',')[0]
-    if iteration == 4:
+    elif iteration == 4:
         try:
             cleaned_address = address.split(',')[1]
-        except:
+        except IndexError:
             return None
-    if iteration == 5:
+    elif iteration == 5:
         cleaned_address = address.replace('berlin', '', 1)
-    if iteration > 5:
+    else:
         cleaned_address = 'berlin'
 
-    # Check our cache
     cached = try_get_cached(cleaned_address)
     if cached:
         return cached
 
-    # If cache failed, query geopy API
-    time.sleep(2)
-    new_location = geolocator.geocode(cleaned_address)
-    if new_location is None:
-        return None
-    cached_location = normalize_location(new_location)
-    cache_save(address, cached_location)
-    cache_save(cleaned_address, cached_location)
-    return cached_location
+    while True:
+        time.sleep(GEOCODE_DELAY_SECONDS)
+        try:
+            new_location = geolocator.geocode(cleaned_address)
+        except Exception as err:
+            print('Geocoder error: {0}'.format(err))
+            wait_for_throttle(cleaned_address)
+            continue
+
+        if new_location is None:
+            return None
+
+        cached_location = normalize_location(new_location)
+        cache_save(address, cached_location)
+        cache_save(cleaned_address, cached_location)
+        return cached_location
 
 
 def try_get_cached(key):
     cache = get_cache()
-    if key in cache.keys():
+    if key in cache:
         return tuple_to_location(cache[key])
     return None
 
@@ -190,8 +324,8 @@ def try_get_cached(key):
 def cache_save(key, value_obj):
     cache = get_cache()
     cache[key] = location_to_tuple(value_obj)
-    with open(CACHE_FILE,'wb') as f:
-        pickle.dump(cache,f)
+    with open(CACHE_FILE, 'wb') as f:
+        pickle.dump(cache, f)
 
 
 def location_to_tuple(location):
@@ -306,6 +440,7 @@ def load_legacy_cache():
 
     with open(CACHE_FILE, 'rb') as f:
         return LegacyCacheUnpickler(f).load()
+
 
 if __name__ == '__main__':
     main()

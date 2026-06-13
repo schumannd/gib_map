@@ -76,7 +76,12 @@ def main():
     log('Crawl settings: {0} days, backends={1}, throttle_wait={2} min'.format(
         CRAWL_DAYS, ','.join(FETCH_BACKENDS), THROTTLE_WAIT_MINUTES))
 
+    bootstrapped = bootstrap_data_from_days_js(CRAWL_DAYS)
+    if bootstrapped:
+        log('Bootstrapped {0} day file(s) from days.js'.format(bootstrapped))
+
     clean_stale_day_files(CRAWL_DAYS)
+    log_data_dir_status(CRAWL_DAYS)
     crawl_days(CRAWL_DAYS)
 
 
@@ -112,6 +117,100 @@ def migrate_legacy_json_files():
     if os.path.exists(legacy_state) and not os.path.exists(STATE_FILE):
         os.rename(legacy_state, STATE_FILE)
         log('Moved legacy crawl_state.json into data/')
+
+
+def load_days_js():
+    if not os.path.exists(DAYS_JS_FILE):
+        return []
+
+    with open(DAYS_JS_FILE, 'r') as f:
+        content = f.read().strip()
+
+    if not content.startswith('var days'):
+        return []
+
+    content = content.split('=', 1)[1].strip()
+    if ';\nvar daysMeta' in content:
+        content = content.split(';\nvar daysMeta', 1)[0].strip()
+    content = content.rstrip(';')
+    return json.loads(content)
+
+
+def bootstrap_data_from_days_js(window_days):
+    days_array = load_days_js()
+    if not days_array:
+        return 0
+
+    today = date.today()
+    keep_dates = {
+        (today + timedelta(days=offset)).isoformat()
+        for offset in range(window_days)
+    }
+    bootstrapped = 0
+
+    for day in days_array:
+        day_date = day.get('date')
+        if day_date not in keep_dates:
+            continue
+
+        path = day_json_path(date.fromisoformat(day_date))
+        if os.path.exists(path):
+            continue
+
+        with open(path, 'w') as f:
+            json.dump(day.get('data', {}), f)
+        log('Bootstrapped {0} from days.js ({1} locations)'.format(
+            os.path.basename(path), len(day.get('data', {}))))
+        bootstrapped += 1
+
+    return bootstrapped
+
+
+def is_day_file_complete(target_date):
+    path = day_json_path(target_date)
+    if not os.path.exists(path):
+        return False
+
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return False
+
+    return bool(data) and count_events_in_data(data) > 0
+
+
+def log_data_dir_status(window_days):
+    today = date.today()
+    if not os.path.isdir(DATA_DIR):
+        log('data/ directory is empty (no cache restored yet)')
+        return
+
+    on_disk = sorted(
+        filename for filename in os.listdir(DATA_DIR)
+        if filename.endswith('.json') and filename != 'crawl_state.json'
+    )
+    log('data/ contains {0} day file(s): {1}'.format(
+        len(on_disk), ', '.join(on_disk) if on_disk else 'none'))
+
+    for day_offset in range(window_days):
+        target_date = today + timedelta(days=day_offset)
+        date_str = target_date.strftime('%Y-%m-%d')
+        if is_day_file_complete(target_date):
+            path = day_json_path(target_date)
+            with open(path, 'r') as f:
+                data = json.load(f)
+            log('  {0}: ready ({1} events, {2} locations)'.format(
+                date_str, count_events_in_data(data), len(data)))
+        else:
+            log('  {0}: missing or incomplete'.format(date_str))
+
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, 'r') as f:
+            state = json.load(f)
+        log('crawl_state.json: {0}'.format(state))
+    else:
+        log('crawl_state.json: none')
 
 
 def clean_stale_day_files(days):
@@ -157,7 +256,13 @@ def crawl_days(days):
         resume_tip_index = state.get('tip_index', 0) if day_offset == start_day else 0
         partial_data = state.get('partial_data', {}) if day_offset == start_day else {}
 
-        if resume_tip_index == 0 and not partial_data and os.path.exists(day_json_path(target_date)):
+        if (resume_tip_index > 0 or partial_data) and is_day_file_complete(target_date):
+            log('Day {0}/{1} already complete — ignoring stale resume state for {2}'.format(
+                day_offset + 1, days, target_date.strftime('%Y-%m-%d')))
+            resume_tip_index = 0
+            partial_data = {}
+
+        if resume_tip_index == 0 and not partial_data and is_day_file_complete(target_date):
             log('Day {0}/{1} already on disk, skipping: {2}'.format(
                 day_offset + 1, days, target_date.strftime('%Y-%m-%d')))
             save_state({
@@ -199,13 +304,25 @@ def resolve_start_day(state, days, today):
     if state:
         start_day = state.get('day_offset', 0)
         if state.get('tip_index', 0) > 0 or state.get('partial_data'):
-            log('Resuming interrupted day {0} at tip {1}'.format(
-                start_day + 1, state.get('tip_index', 0) + 1))
-            return start_day, state
+            target_date = today + timedelta(days=start_day)
+            if is_day_file_complete(target_date):
+                log('Resume state points at complete day {0} — skipping it'.format(
+                    start_day + 1))
+                start_day += 1
+                state = {
+                    'crawl_start_date': today.isoformat(),
+                    'day_offset': start_day,
+                    'tip_index': 0,
+                    'partial_data': {},
+                }
+            else:
+                log('Resuming interrupted day {0} at tip {1}'.format(
+                    start_day + 1, state.get('tip_index', 0) + 1))
+                return start_day, state
 
         for day_offset in range(start_day):
             target_date = today + timedelta(days=day_offset)
-            if not os.path.exists(day_json_path(target_date)):
+            if not is_day_file_complete(target_date):
                 log('Missing data for day {0}, recrawling from there'.format(day_offset + 1))
                 return day_offset, {}
 
@@ -216,7 +333,7 @@ def resolve_start_day(state, days, today):
     start_day = 0
     for day_offset in range(days):
         target_date = today + timedelta(days=day_offset)
-        if os.path.exists(day_json_path(target_date)):
+        if is_day_file_complete(target_date):
             log('Found completed day {0}/{1} on disk: {2}'.format(
                 day_offset + 1, days, target_date.strftime('%Y-%m-%d')))
             start_day = day_offset + 1

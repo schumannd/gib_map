@@ -21,15 +21,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Restore crawl progress
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
+        id: crawl-cache
         with:
           path: |
             cache.pickle
             data
           key: crawl-progress-v1
           restore-keys: crawl-progress-v1
+
+      - name: Bootstrap data from last deploy
+        run: |
+          if git fetch origin gh-pages --depth 1 2>/dev/null && \
+             git show origin/gh-pages:days.js > days.js 2>/dev/null; then
+            echo "Fetched days.js from gh-pages ($(wc -c < days.js) bytes)"
+          else
+            echo "No gh-pages days.js available for bootstrap"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -45,6 +57,15 @@ jobs:
           PYTHONUNBUFFERED: '1'
           GIB_THROTTLE_WAIT_MINUTES: '10'
         run: python -u crawl_gib.py
+
+      - name: Save crawl progress
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            cache.pickle
+            data
+          key: crawl-progress-v1
 
       - name: Verify crawl output
         run: |

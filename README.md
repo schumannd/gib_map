@@ -80,6 +80,8 @@ Pushing changes to `index.html`, `main.js`, or `base.css` on **`main`** also tri
 - Runs **automatically every day at 05:00 UTC** (see `cron` in [`.github/workflows/crawl.yml`](.github/workflows/crawl.yml))
 - Crawls, then deploys static files to **`gh-pages`**
 - Geocoding cache and per-day JSON persist via GitHub Actions cache (not in git)
+- The workflow **always saves** cache after each run (GitHub's default cache action skips updates on cache hits)
+- Before crawling, it **bootstraps `data/` from `gh-pages` `days.js`** when day files are missing
 - Pushes to **`main`** that change `index.html`, `main.js`, or `base.css` auto-deploy UI to **`gh-pages`** via [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml), keeping existing `days.js`
 
 #### Daily incremental crawl

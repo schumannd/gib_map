@@ -17,15 +17,22 @@ window.onload = function() {
   showDataStatus(dataStatus);
   loadDate(0);
 
-  document.getElementById('date_picker').addEventListener('click', function(event) {
-    var button = event.target.closest('.day_div');
-    if (!button) {
+  var datePicker = document.getElementById('date_picker');
+  datePicker.addEventListener('click', function(event) {
+    if (event.target.id === 'date_picker-handle') {
+      document.body.classList.toggle('day-picker-open');
       return;
     }
-    loadDate(parseInt(button.dataset.dayIndex, 10));
-  });
 
-  document.getElementById('date_picker').addEventListener('keydown', handleDayPickerKeydown);
+    var button = event.target.closest('.day_div');
+    if (button) {
+      loadDate(parseInt(button.dataset.dayIndex, 10));
+      if (window.matchMedia('(max-width: 720px)').matches) {
+        document.body.classList.add('day-picker-open');
+      }
+    }
+  });
+  datePicker.addEventListener('keydown', handleDayPickerKeydown);
 
   var searchInput = document.getElementById('event-search');
   var clearSearchButton = document.getElementById('clear-search');
@@ -40,6 +47,12 @@ window.onload = function() {
     clearSearchButton.hidden = true;
     loadDate(currentDayIndex);
     searchInput.focus();
+  });
+
+  var headerToggle = document.getElementById('header-toggle');
+  headerToggle.addEventListener('click', function() {
+    var isOpen = document.body.classList.toggle('header-open');
+    headerToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
   });
 };
 
@@ -77,7 +90,11 @@ function handleDayPickerKeydown(event) {
 
 function buildDayPicker() {
   var picker = document.getElementById('date_picker');
+  var handle = document.getElementById('date_picker-handle');
   picker.innerHTML = '';
+  if (handle) {
+    picker.appendChild(handle);
+  }
 
   if (typeof days === 'undefined' || !days.length) {
     return;

@@ -2,16 +2,18 @@ var BERLIN_CENTER_LAT = 52.5170365;
 var BERLIN_CENTER_LNG = 13.3888599;
 var currentMap = null;
 var currentDayIndex = 0;
+var EXPECTED_DAYS = 7;
 
 window.onload = function() {
   buildDayPicker();
+  var dataStatus = evaluateDataStatus();
 
-  if (typeof days === 'undefined' || !days.length) {
-    document.getElementById('empty-state').hidden = false;
-    document.getElementById('map').hidden = true;
+  if (dataStatus.type === 'missing') {
+    showEmptyState(dataStatus.title, dataStatus.message);
     return;
   }
 
+  showDataStatus(dataStatus);
   loadDate(0);
 
   document.getElementById('date_picker').addEventListener('click', function(event) {
@@ -88,6 +90,101 @@ function buildDayPicker() {
 function formatDate(isoDate) {
   var parts = isoDate.split('-');
   return parts[2] + '.' + parts[1] + '.';
+}
+
+function todayIsoDate() {
+  var today = new Date();
+  var month = String(today.getMonth() + 1).padStart(2, '0');
+  var day = String(today.getDate()).padStart(2, '0');
+  return today.getFullYear() + '-' + month + '-' + day;
+}
+
+function addDaysToIsoDate(isoDate, offset) {
+  var parts = isoDate.split('-');
+  var date = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  date.setDate(date.getDate() + offset);
+  var month = String(date.getMonth() + 1).padStart(2, '0');
+  var day = String(date.getDate()).padStart(2, '0');
+  return date.getFullYear() + '-' + month + '-' + day;
+}
+
+function evaluateDataStatus() {
+  if (typeof days === 'undefined' || !days.length) {
+    return {
+      type: 'missing',
+      title: 'Noch keine Daten geladen.',
+      message: 'Führe python crawl_gib.py aus, um Events zu laden.'
+    };
+  }
+
+  var today = todayIsoDate();
+  var firstDate = days[0].date;
+  var dayOffset = daysBetweenIsoDates(today, firstDate);
+
+  if (dayOffset < 0) {
+    return {
+      type: 'stale',
+      bannerClass: 'warning',
+      message: 'Daten sind veraltet: ältester Tag ist ' + formatDate(firstDate) + '. Bitte Crawler erneut ausführen.'
+    };
+  }
+
+  if (dayOffset > 0) {
+    return {
+      type: 'future',
+      bannerClass: 'info',
+      message: 'Daten beginnen erst am ' + formatDate(firstDate) + '.'
+    };
+  }
+
+  if (days.length < EXPECTED_DAYS) {
+    return {
+      type: 'partial',
+      bannerClass: 'warning',
+      message: 'Unvollständige Daten: ' + days.length + ' von ' + EXPECTED_DAYS + ' Tagen geladen. Crawler ggf. fortsetzen.'
+    };
+  }
+
+  var expectedLastDate = addDaysToIsoDate(today, EXPECTED_DAYS - 1);
+  var lastDate = days[days.length - 1].date;
+  if (lastDate !== expectedLastDate) {
+    return {
+      type: 'partial',
+      bannerClass: 'warning',
+      message: 'Daten enden am ' + formatDate(lastDate) + ' statt ' + formatDate(expectedLastDate) + '.'
+    };
+  }
+
+  return { type: 'ok' };
+}
+
+function daysBetweenIsoDates(startIso, endIso) {
+  var start = new Date(startIso + 'T00:00:00');
+  var end = new Date(endIso + 'T00:00:00');
+  return Math.round((end - start) / 86400000);
+}
+
+function showEmptyState(title, message) {
+  document.getElementById('empty-state-title').textContent = title;
+  document.getElementById('empty-state-message').textContent = message;
+  document.getElementById('empty-state').hidden = false;
+  document.getElementById('map').hidden = true;
+  document.getElementById('data-status').hidden = true;
+  document.body.classList.remove('has-status-banner');
+}
+
+function showDataStatus(status) {
+  var banner = document.getElementById('data-status');
+  if (!status.message) {
+    banner.hidden = true;
+    document.body.classList.remove('has-status-banner');
+    return;
+  }
+
+  banner.hidden = false;
+  banner.className = 'status-banner ' + (status.bannerClass || 'info');
+  banner.textContent = status.message;
+  document.body.classList.add('has-status-banner');
 }
 
 function countEvents(data) {

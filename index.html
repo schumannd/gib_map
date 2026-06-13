@@ -28,9 +28,11 @@
     <span class="legend-item"><span class="legend-dot legend-dot-approx"></span> Ungefährer Ort</span>
   </div>
 
+  <div id="data-status" class="status-banner" hidden></div>
+
   <div id="empty-state" hidden>
-    <p>Noch keine Daten geladen.</p>
-    <p>Führe <code>python crawl_gib.py</code> aus, um Events zu laden.</p>
+    <p id="empty-state-title">Noch keine Daten geladen.</p>
+    <p id="empty-state-message">Führe <code>python crawl_gib.py</code> aus, um Events zu laden.</p>
   </div>
 
   <div id="map" role="tabpanel" aria-labelledby="day-tab-0"></div>

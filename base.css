@@ -358,6 +358,33 @@ body.has-status-banner #map {
   text-decoration: underline;
 }
 
+#locate-me {
+  position: fixed;
+  right: 16px;
+  bottom: 78px;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+#locate-me:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#locate-me.active {
+  background: var(--accent);
+  border-color: var(--accent-dark);
+  color: #fff;
+}
+
 @media (max-width: 720px) {
   #header-toggle {
     display: inline-block;
@@ -451,6 +478,10 @@ body.has-status-banner #map {
     bottom: 78px;
   }
 
+  #locate-me {
+    bottom: 132px;
+  }
+
   body.day-picker-open #site-footer {
     display: none;
   }
@@ -472,6 +503,7 @@ body.has-status-banner #map {
   #search-bar,
   #legend,
   #site-footer,
+  #locate-me,
   .day_div,
   #date_picker {
     background: rgba(31, 41, 55, 0.96);

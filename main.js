@@ -4,6 +4,7 @@ var currentMap = null;
 var currentDayIndex = 0;
 var currentSearchQuery = '';
 var markerCluster = null;
+var userLocationMarker = null;
 var EXPECTED_DAYS = 7;
 
 window.onload = function() {
@@ -55,6 +56,8 @@ window.onload = function() {
     var isOpen = document.body.classList.toggle('header-open');
     headerToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
   });
+
+  document.getElementById('locate-me').addEventListener('click', locateUser);
 };
 
 function handleDayPickerKeydown(event) {
@@ -381,4 +384,91 @@ function escapeHtml(text) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function locateUser() {
+  if (!navigator.geolocation) {
+    window.alert('Geolocation wird von diesem Browser nicht unterstützt.');
+    return;
+  }
+
+  var button = document.getElementById('locate-me');
+  button.disabled = true;
+
+  navigator.geolocation.getCurrentPosition(function(position) {
+    button.disabled = false;
+    button.classList.add('active');
+
+    var userPosition = new google.maps.LatLng(
+      position.coords.latitude,
+      position.coords.longitude
+    );
+
+    if (!currentMap) {
+      return;
+    }
+
+    currentMap.panTo(userPosition);
+    currentMap.setZoom(Math.max(currentMap.getZoom(), 13));
+
+    if (userLocationMarker) {
+      userLocationMarker.setMap(null);
+    }
+
+    userLocationMarker = new google.maps.Marker({
+      position: userPosition,
+      map: currentMap,
+      title: 'Meine Position',
+      icon: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+      zIndex: google.maps.Marker.MAX_ZINDEX + 1
+    });
+
+    highlightNearestEvents(userPosition);
+  }, function() {
+    button.disabled = false;
+    window.alert('Position konnte nicht ermittelt werden.');
+  }, {
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 60000
+  });
+}
+
+function highlightNearestEvents(userPosition) {
+  if (typeof days === 'undefined' || !days[currentDayIndex]) {
+    return;
+  }
+
+  var dayData = filterLocationsByQuery(days[currentDayIndex].data, currentSearchQuery);
+  var nearest = null;
+  var nearestDistance = Infinity;
+
+  for (var address in dayData) {
+    if (!dayData.hasOwnProperty(address)) {
+      continue;
+    }
+
+    var spot = dayData[address][0];
+    var eventPosition = new google.maps.LatLng(spot.lat, spot.lng);
+    var distance = google.maps.geometry.spherical.computeDistanceBetween(
+      userPosition,
+      eventPosition
+    );
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = {
+        address: address,
+        spot: spot,
+        distanceKm: (distance / 1000).toFixed(1)
+      };
+    }
+  }
+
+  if (!nearest) {
+    return;
+  }
+
+  document.getElementById('subtitle').textContent =
+    'Nächstes Event: ' + nearest.spot.title + ' (' + nearest.distanceKm + ' km)';
 }

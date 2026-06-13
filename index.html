@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gratis in Berlin – Karte</title>
   <link rel="stylesheet" type="text/css" href="base.css" />
-  <script src="https://maps.google.com/maps/api/js?sensor=false&key=AIzaSyDuEpLTK8wVCLbAm_MhlB-OOeJ29vO_QVQ" type="text/javascript"></script>
+  <script src="https://maps.google.com/maps/api/js?sensor=false&key=AIzaSyDuEpLTK8wVCLbAm_MhlB-OOeJ29vO_QVQ&libraries=geometry" type="text/javascript"></script>
   <script src="https://unpkg.com/@googlemaps/markerclusterer@2.5.3/dist/index.min.js"></script>
   <script src="days.js"></script>
   <script src="main.js"></script>
@@ -50,6 +50,8 @@
   </div>
 
   <div id="map" role="tabpanel" aria-labelledby="day-tab-0"></div>
+
+  <button id="locate-me" type="button" aria-label="Meine Position anzeigen">◎</button>
 
   <footer id="site-footer">
     <a href="https://www.gratis-in-berlin.de/" target="_blank" rel="noopener">Event-Daten von gratis-in-berlin.de</a>

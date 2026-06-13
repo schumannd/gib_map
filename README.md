@@ -18,7 +18,7 @@ Open [http://localhost:8000](http://localhost:8000).
 
 The crawler:
 - fetches **7 days** of listings (today through today+6)
-- **resumes** automatically if interrupted (`crawl_state.json`)
+- **resumes** automatically if interrupted (`data/crawl_state.json` + per-day JSON in `data/`)
 - **waits and retries** when throttled (default: 5 minutes; override with `GIB_THROTTLE_WAIT_MINUTES`)
 
 If the crawl stops midway, run `python crawl_gib.py` again — it continues where it left off.
@@ -64,13 +64,12 @@ The map will be at `https://YOUR_USER.github.io/gib_map/` after the first deploy
 
 ### 3. First deploy (get the site online immediately)
 
-Your full crawl data lives on the **`master`** branch (commit before we stopped committing data to git). Until a new crawl finishes, deploy from there:
+The **`gh-pages`** branch is already published with recovered crawl data (~230 KB `days.js` from commit `0a8acf3`).
 
-1. **Actions** → **Deploy to GitHub Pages** → **Run workflow**
+1. **Settings** → **Pages** → source: **Deploy from a branch** → branch **`gh-pages`** / **`/ (root)`**
+2. Site URL: `https://schumannd.github.io/gib_map/`
 
-This creates the **`gh-pages`** branch and publishes the site with:
-- `index.html` from **`main`** (your new API key)
-- `days.js` from **`origin/master`** (last successful 7-day crawl)
+To redeploy after UI changes on **`main`**, run **Actions** → **Deploy to GitHub Pages** → **Run workflow**. It uses `days.js` from **`gh-pages`** (or recovers from `0a8acf3` in git history if missing).
 
 Pushing changes to `index.html`, `main.js`, or `base.css` on **`main`** also triggers this deploy automatically.
 
@@ -101,6 +100,7 @@ Google requires a billing account but gives ~$200/month free Maps credit — thi
 |---------|-------|
 | Deploy target | `gh-pages` branch (not `main`) |
 | Geocoding cache | GitHub Actions cache (`cache.pickle`) |
+| Crawl progress | GitHub Actions cache (`data/` directory) |
 | Timeout | 6 hours |
 
 ## Generated files (not on `main`)
@@ -108,24 +108,23 @@ Google requires a billing account but gives ~$200/month free Maps credit — thi
 | File | Purpose |
 |------|---------|
 | `days.js` | Frontend data (deployed to `gh-pages` only) |
-| `YYYY-MM-DD.json` | Raw data per day (local / CI only) |
-| `crawl_state.json` | Resume checkpoint (temporary) |
+| `data/YYYY-MM-DD.json` | Raw data per day (local / CI only) |
+| `data/crawl_state.json` | Resume checkpoint (temporary) |
 | `cache.pickle` | Geocoding cache (Actions cache only) |
 
 ## Troubleshooting
 
 - **No `gh-pages` branch** — run **Deploy to GitHub Pages** once (see step 3 above).
 - **Empty map** — confirm Pages uses **`gh-pages`**, not **`main`**.
-- **Recover crawl data locally** — full 7-day data is on `origin/master`:
+- **Recover crawl data locally**:
   ```bash
-  git fetch origin
-  git show origin/master:days.js > days.js
+  git fetch origin gh-pages
+  git show origin/gh-pages:days.js > days.js
   ```
-  (Commit `8ae7411` never reached GitHub — it only existed on the Actions runner.)
-- **Commit step failed on `main`** — old workflow; data may be on **`origin/master`** instead.
+  Or from git history: `git show 0a8acf3:days.js > days.js`
 - **Only 3 events** — old deploy; re-run workflow after crawl completes
 - **Map error** — fix API key referrers for `github.io` (see above)
-- **Crawler stops mid-run** — re-run workflow; resumes within the same job via `crawl_state.json`
+- **Crawler stops mid-run** — re-run workflow; finished days are skipped via cached `data/` files and `data/crawl_state.json`
 
 ## Alternatives
 

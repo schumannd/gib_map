@@ -25,8 +25,10 @@ jobs:
       - name: Prepare static site
         run: |
           if [ ! -s days.js ]; then
-            if git fetch origin master 2>/dev/null && git show origin/master:days.js > days.js 2>/dev/null; then
-              echo "Using days.js from origin/master (last successful crawl commit)"
+            if git fetch origin gh-pages 2>/dev/null && git show origin/gh-pages:days.js > days.js 2>/dev/null; then
+              echo "Using days.js from origin/gh-pages (last deployed crawl data)"
+            elif git show 0a8acf3:days.js > days.js 2>/dev/null; then
+              echo "Using days.js recovered from commit 0a8acf3"
             else
               echo "var days = [];" > days.js
               echo "::warning::No days.js found — map will be empty until a crawl completes"

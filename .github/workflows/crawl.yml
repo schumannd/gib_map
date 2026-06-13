@@ -22,12 +22,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Restore geocoding cache
+      - name: Restore crawl progress
         uses: actions/cache@v4
         with:
-          path: cache.pickle
-          key: geocode-cache-v1
-          restore-keys: geocode-cache-v1
+          path: |
+            cache.pickle
+            data
+          key: crawl-progress-v1
+          restore-keys: crawl-progress-v1
 
       - name: Set up Python
         uses: actions/setup-python@v5

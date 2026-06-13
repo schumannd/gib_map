@@ -3,6 +3,7 @@ from curl_cffi import requests as http
 from geopy.geocoders import Nominatim
 from datetime import date, timedelta
 import json
+import re
 import time
 import os
 import _pickle as pickle
@@ -11,10 +12,23 @@ import requests as std_requests
 geolocator = Nominatim(user_agent='gib_map_crawler')
 
 BASE_URL = 'https://www.gratis-in-berlin.de'
-JSON_PATH = os.path.dirname(os.path.abspath(__file__)) + os.sep
-CACHE_FILE = 'cache.pickle'
-STATE_FILE = 'crawl_state.json'
-DAYS_JS_FILE = 'days.js'
+ROOT_PATH = os.path.dirname(os.path.abspath(__file__)) + os.sep
+DATA_DIR = os.path.join(ROOT_PATH, 'data')
+CACHE_FILE = os.path.join(ROOT_PATH, 'cache.pickle')
+STATE_FILE = os.path.join(DATA_DIR, 'crawl_state.json')
+DAYS_JS_FILE = os.path.join(ROOT_PATH, 'days.js')
+
+BERLIN_CENTER_LAT = 52.5170365
+BERLIN_CENTER_LNG = 13.3888599
+GERMANY_BOUNDS = {
+    'min_lat': 47.27,
+    'max_lat': 55.06,
+    'min_lng': 5.87,
+    'max_lng': 15.04,
+}
+STREET_WORD_PATTERN = (
+    r'(?:str\.?|straße|strasse|weg|platz|allee|damm|ufer|pfad|gasse|ring|steig|hof|ufer)'
+)
 
 CRAWL_DAYS = 7
 FETCH_RETRIES = 5
@@ -55,44 +69,109 @@ def main():
     abspath = os.path.abspath(__file__)
     dname = os.path.dirname(abspath)
     os.chdir(dname)
+    ensure_data_dir()
+    migrate_legacy_json_files()
 
     log('Starting crawler (output unbuffered for CI logs).')
     log('Crawl settings: {0} days, backends={1}, throttle_wait={2} min'.format(
         CRAWL_DAYS, ','.join(FETCH_BACKENDS), THROTTLE_WAIT_MINUTES))
 
-    remove_yesterday()
+    clean_stale_day_files(CRAWL_DAYS)
     crawl_days(CRAWL_DAYS)
 
 
-def remove_yesterday():
-    while True:
+def ensure_data_dir():
+    if not os.path.isdir(DATA_DIR):
+        os.makedirs(DATA_DIR)
+
+
+def day_json_path(target_date):
+    date_str = target_date.strftime('%Y-%m-%d')
+    return os.path.join(DATA_DIR, date_str + '.json')
+
+
+def migrate_legacy_json_files():
+    if not os.path.isdir(DATA_DIR):
+        return
+
+    for filename in os.listdir(ROOT_PATH):
+        if not filename.endswith('.json') or len(filename) != 15:
+            continue
         try:
-            file_to_remove = (date.today() - timedelta(days=1)).strftime('%Y-%m-%d') + '.json'
-            os.remove(JSON_PATH + file_to_remove)
-        except OSError:
-            break
+            date.fromisoformat(filename.replace('.json', ''))
+        except ValueError:
+            continue
+
+        legacy_path = os.path.join(ROOT_PATH, filename)
+        target_path = os.path.join(DATA_DIR, filename)
+        if not os.path.exists(target_path):
+            os.rename(legacy_path, target_path)
+            log('Moved legacy data file into data/: {0}'.format(filename))
+
+    legacy_state = os.path.join(ROOT_PATH, 'crawl_state.json')
+    if os.path.exists(legacy_state) and not os.path.exists(STATE_FILE):
+        os.rename(legacy_state, STATE_FILE)
+        log('Moved legacy crawl_state.json into data/')
+
+
+def clean_stale_day_files(days):
+    today = date.today()
+    keep_dates = {
+        (today + timedelta(days=offset)).strftime('%Y-%m-%d')
+        for offset in range(days)
+    }
+
+    if not os.path.isdir(DATA_DIR):
+        return
+
+    for filename in os.listdir(DATA_DIR):
+        if not filename.endswith('.json') or filename == 'crawl_state.json':
+            continue
+        if filename.replace('.json', '') not in keep_dates:
+            os.remove(os.path.join(DATA_DIR, filename))
+            log('Removed stale data file {0}'.format(filename))
 
 
 def crawl_days(days):
-    state = load_state()
-    start_day = state.get('day_offset', 0)
     today = date.today()
+    state = load_state()
+    start_day, state = resolve_start_day(state, days, today)
+
+    if start_day >= days:
+        log('All {0} days already crawled — regenerating days.js'.format(days))
+        write_days_js(days)
+        clear_state()
+        log('Crawl complete.')
+        return
 
     for day_offset in range(start_day, days):
         target_date = today + timedelta(days=day_offset)
         resume_tip_index = state.get('tip_index', 0) if day_offset == start_day else 0
         partial_data = state.get('partial_data', {}) if day_offset == start_day else {}
 
+        if resume_tip_index == 0 and not partial_data and os.path.exists(day_json_path(target_date)):
+            log('Day {0}/{1} already on disk, skipping: {2}'.format(
+                day_offset + 1, days, target_date.strftime('%Y-%m-%d')))
+            save_state({
+                'crawl_start_date': today.isoformat(),
+                'day_offset': day_offset + 1,
+                'tip_index': 0,
+                'partial_data': {},
+            })
+            write_days_js(days)
+            continue
+
         log('Crawling day {0}/{1}: {2}'.format(
             day_offset + 1, days, target_date.strftime('%Y-%m-%d')))
 
-        day_data = get_and_save_data_for_date(
+        get_and_save_data_for_date(
             target_date,
             start_tip_index=resume_tip_index,
             partial_data=partial_data,
         )
 
         save_state({
+            'crawl_start_date': today.isoformat(),
             'day_offset': day_offset + 1,
             'tip_index': 0,
             'partial_data': {},
@@ -104,23 +183,54 @@ def crawl_days(days):
     log('Crawl complete.')
 
 
+def resolve_start_day(state, days, today):
+    if state and state.get('crawl_start_date') != today.isoformat():
+        log('Crawl state is from a previous run date — starting fresh')
+        state = {}
+
+    if state:
+        start_day = state.get('day_offset', 0)
+        if state.get('tip_index', 0) > 0 or state.get('partial_data'):
+            log('Resuming interrupted day {0} at tip {1}'.format(
+                start_day + 1, state.get('tip_index', 0) + 1))
+            return start_day, state
+
+        for day_offset in range(start_day):
+            target_date = today + timedelta(days=day_offset)
+            if not os.path.exists(day_json_path(target_date)):
+                log('Missing data for day {0}, recrawling from there'.format(day_offset + 1))
+                return day_offset, {}
+
+        if start_day > 0:
+            log('Resuming from day {0}/{1}'.format(start_day + 1, days))
+        return start_day, state
+
+    start_day = 0
+    for day_offset in range(days):
+        target_date = today + timedelta(days=day_offset)
+        if os.path.exists(day_json_path(target_date)):
+            log('Found completed day {0}/{1} on disk: {2}'.format(
+                day_offset + 1, days, target_date.strftime('%Y-%m-%d')))
+            start_day = day_offset + 1
+        else:
+            break
+
+    if start_day > 0:
+        log('Skipping {0} already-finished day(s)'.format(start_day))
+
+    return start_day, {}
+
+
 def load_state():
     if not os.path.exists(STATE_FILE):
         return {}
 
     with open(STATE_FILE, 'r') as f:
-        state = json.load(f)
-
-    if state:
-        log('Resuming from day {0}, tip {1}'.format(
-            state.get('day_offset', 0) + 1,
-            state.get('tip_index', 0) + 1,
-        ))
-
-    return state
+        return json.load(f)
 
 
 def save_state(state):
+    ensure_data_dir()
     with open(STATE_FILE, 'w') as f:
         json.dump(state, f)
 
@@ -146,7 +256,7 @@ def write_days_js(days):
     for day_offset in range(days):
         target_date = today + timedelta(days=day_offset)
         date_str = target_date.strftime('%Y-%m-%d')
-        json_path = JSON_PATH + date_str + '.json'
+        json_path = day_json_path(target_date)
 
         if not os.path.exists(json_path):
             continue
@@ -161,7 +271,7 @@ def write_days_js(days):
         })
 
     js_content = 'var days = {0};'.format(json.dumps(days_array))
-    with open(JSON_PATH + DAYS_JS_FILE, 'w') as f:
+    with open(DAYS_JS_FILE, 'w') as f:
         f.write(js_content)
     log('Wrote {0} ({1} day(s))'.format(DAYS_JS_FILE, len(days_array)))
 
@@ -331,10 +441,11 @@ def get_and_save_data_for_date(target_date, start_tip_index=0, partial_data=None
             taken_locations[lat][lng] = address
             final_json.setdefault(address, []).append(tip_object)
 
-        with open(JSON_PATH + date_str + '.json', 'w') as f:
+        with open(day_json_path(target_date), 'w') as f:
             json.dump(final_json, f)
 
         save_state({
+            'crawl_start_date': date.today().isoformat(),
             'day_offset': (target_date - date.today()).days,
             'tip_index': tip_index + 1,
             'partial_data': final_json,
@@ -356,64 +467,125 @@ def rebuild_taken_locations(final_json):
 
 
 def get_lat_lng(address):
-    location = None
-    iteration = 0
-    while not location:
-        location = try_to_get_location(address, iteration)
-        iteration += 1
-    return location.latitude, location.longitude
+    for query in build_geocode_queries(address):
+        location = geocode_query(query, address)
+        if location:
+            return location.latitude, location.longitude
+
+    log('Could not geocode in Germany, using approximate Berlin center: {0}'.format(address))
+    return BERLIN_CENTER_LAT, BERLIN_CENTER_LNG
 
 
-def try_to_get_location(address, iteration):
+def is_in_germany(lat, lng):
+    return (
+        GERMANY_BOUNDS['min_lat'] <= lat <= GERMANY_BOUNDS['max_lat'] and
+        GERMANY_BOUNDS['min_lng'] <= lng <= GERMANY_BOUNDS['max_lng']
+    )
+
+
+def normalize_address(address):
     wrong_words_for_str = ['starße', 'strasße', 'strße', 'strsse', 'straß1']
-    if any(word in address for word in wrong_words_for_str):
-        for wrong_str in wrong_words_for_str:
-            address = address.replace(wrong_str, 'str')
+    normalized = ' '.join(address.lower().split())
+    for wrong_str in wrong_words_for_str:
+        normalized = normalized.replace(wrong_str, 'str')
+    return normalized
 
-    if iteration == 0:
-        cleaned_address = address
-    elif iteration == 1:
-        cleaned_address = address.replace('s-bahnbogen', '')
-    elif iteration == 2:
-        cleaned_address = address.replace('haus', '')
-    elif iteration == 3:
-        cleaned_address = address.split(',')[0]
-    elif iteration == 4:
-        try:
-            cleaned_address = address.split(',')[1]
-        except IndexError:
-            return None
-    elif iteration == 5:
-        cleaned_address = address.replace('berlin', '', 1)
+
+def extract_plz(address):
+    match = re.search(r'\b(\d{5})\b', address)
+    return match.group(1) if match else None
+
+
+def build_geocode_queries(address):
+    address = normalize_address(address)
+    plz = extract_plz(address)
+    queries = []
+
+    if plz:
+        queries.append('{0}, deutschland'.format(address))
+        queries.append('{0}, berlin, deutschland'.format(address))
+
+        for part in reversed([part.strip() for part in address.split(',') if part.strip()]):
+            cleaned = re.sub(r'\b{0}\b'.format(plz), '', part).strip()
+            cleaned = re.sub(r'\bberlin\b', '', cleaned).strip()
+            cleaned = re.sub(r'\s+', ' ', cleaned)
+            if len(cleaned) >= 4:
+                queries.append('{0}, {1} berlin, deutschland'.format(cleaned, plz))
+
+        street_match = re.search(
+            r'([\wäöüß\.\-]+' + STREET_WORD_PATTERN + r'\.?\s*\d+)',
+            address,
+        )
+        if street_match:
+            queries.append('{0}, {1} berlin, deutschland'.format(
+                street_match.group(1).strip(), plz))
+
+        street_before_plz = re.search(
+            r'([\wäöüß\.\-]+' + STREET_WORD_PATTERN + r'\.?\s*\d*)\s+' + plz,
+            address,
+        )
+        if street_before_plz:
+            queries.append('{0}, {1} berlin, deutschland'.format(
+                street_before_plz.group(1).strip(), plz))
+
+        queries.append('{0} berlin, deutschland'.format(plz))
     else:
-        cleaned_address = 'berlin'
+        queries.append('{0}, berlin, deutschland'.format(address))
+        queries.append('{0}, deutschland'.format(address))
+        queries.append(address)
 
-    cached = try_get_cached(cleaned_address)
+    unique_queries = []
+    seen = set()
+    for query in queries:
+        query = re.sub(r'\s+', ' ', query).strip(' ,')
+        if query and query not in seen:
+            seen.add(query)
+            unique_queries.append(query)
+    return unique_queries
+
+
+def geocode_query(query, original_address):
+    cached = try_get_cached(query)
     if cached:
         return cached
 
     while True:
         time.sleep(GEOCODE_DELAY_SECONDS)
         try:
-            new_location = geolocator.geocode(cleaned_address)
+            new_location = geolocator.geocode(query, country_codes='de')
         except Exception as err:
             log('Geocoder error: {0}'.format(err))
-            wait_for_throttle(cleaned_address)
+            wait_for_throttle(query)
             continue
 
         if new_location is None:
             return None
 
         cached_location = normalize_location(new_location)
-        cache_save(address, cached_location)
-        cache_save(cleaned_address, cached_location)
+        if not is_in_germany(cached_location.latitude, cached_location.longitude):
+            log('Rejected geocode outside Germany for {0!r}: {1}, {2}'.format(
+                query, cached_location.latitude, cached_location.longitude))
+            return None
+
+        cache_save(query, cached_location)
+        if query != original_address:
+            cache_save(original_address, cached_location)
         return cached_location
 
 
 def try_get_cached(key):
     cache = get_cache()
-    if key in cache:
-        return tuple_to_location(cache[key])
+    if key not in cache:
+        return None
+
+    location = tuple_to_location(cache[key])
+    if location and is_in_germany(location.latitude, location.longitude):
+        return location
+
+    log('Removing cached geocode outside Germany for {0!r}'.format(key))
+    del cache[key]
+    with open(CACHE_FILE, 'wb') as f:
+        pickle.dump(cache, f)
     return None
 
 
@@ -492,6 +664,22 @@ def get_cache():
         for key, value in CACHE.items()
         if value is not None
     }
+
+    valid_cache = {}
+    removed = 0
+    for key, value in CACHE.items():
+        lat, lng = value
+        if is_in_germany(lat, lng):
+            valid_cache[key] = value
+        else:
+            removed += 1
+
+    if removed:
+        log('Purged {0} cached geocode(s) outside Germany'.format(removed))
+        with open(CACHE_FILE, 'wb') as f:
+            pickle.dump(valid_cache, f)
+
+    CACHE = valid_cache
     return CACHE
 
 

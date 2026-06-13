@@ -1,5 +1,13 @@
 var BERLIN_CENTER_LAT = 52.5170365;
 var BERLIN_CENTER_LNG = 13.3888599;
+var REGION_BOUNDS = {
+  south: 52.34,
+  west: 12.92,
+  north: 52.60,
+  east: 13.52
+};
+var REGION_CENTER = { lat: 52.47, lng: 13.22 };
+var REGION_DEFAULT_ZOOM = 10;
 var currentMap = null;
 var currentDayIndex = 0;
 var currentSearchQuery = '';
@@ -303,9 +311,53 @@ function filterLocationsByQuery(locations, query) {
   return filtered;
 }
 
+function getRegionBounds() {
+  return new google.maps.LatLngBounds(
+    new google.maps.LatLng(REGION_BOUNDS.south, REGION_BOUNDS.west),
+    new google.maps.LatLng(REGION_BOUNDS.north, REGION_BOUNDS.east)
+  );
+}
+
+function isWithinRegion(lat, lng) {
+  return lat >= REGION_BOUNDS.south && lat <= REGION_BOUNDS.north &&
+    lng >= REGION_BOUNDS.west && lng <= REGION_BOUNDS.east;
+}
+
+function clearUserLocation() {
+  if (userLocationMarker) {
+    userLocationMarker.setMap(null);
+    userLocationMarker = null;
+  }
+
+  var locateButton = document.getElementById('locate-me');
+  if (locateButton) {
+    locateButton.classList.remove('active');
+  }
+}
+
+function applyMapViewport(map, markerBounds, hasMarkers) {
+  var regionBounds = getRegionBounds();
+  map.fitBounds(regionBounds, 48);
+
+  if (!hasMarkers) {
+    return;
+  }
+
+  map.fitBounds(markerBounds, 48);
+  google.maps.event.addListenerOnce(map, 'idle', function() {
+    var zoom = map.getZoom();
+    if (zoom > 15) {
+      map.setZoom(15);
+    } else if (zoom < REGION_DEFAULT_ZOOM) {
+      map.fitBounds(regionBounds, 48);
+    }
+  });
+}
+
 function displayLocations(locations) {
   var mapElement = document.getElementById('map');
   mapElement.innerHTML = '';
+  clearUserLocation();
 
   if (window.mapLoadError) {
     mapElement.innerHTML = '<div class="map-error">' + escapeHtml(window.mapLoadError) + '</div>';
@@ -320,12 +372,16 @@ function displayLocations(locations) {
   }
 
   currentMap = new google.maps.Map(mapElement, {
-    zoom: 11,
-    center: new google.maps.LatLng(52.520008, 13.404954),
+    zoom: REGION_DEFAULT_ZOOM,
+    center: REGION_CENTER,
     mapTypeId: google.maps.MapTypeId.ROADMAP,
     fullscreenControl: true,
     streetViewControl: false,
-    mapTypeControl: false
+    mapTypeControl: false,
+    restriction: {
+      latLngBounds: getRegionBounds(),
+      strictBounds: false
+    }
   });
 
   var infowindow = new google.maps.InfoWindow();
@@ -341,8 +397,10 @@ function displayLocations(locations) {
       locationSpots[0].lng === BERLIN_CENTER_LNG;
 
     var position = new google.maps.LatLng(locationSpots[0].lat, locationSpots[0].lng);
-    bounds.extend(position);
-    hasMarkers = true;
+    if (isWithinRegion(locationSpots[0].lat, locationSpots[0].lng)) {
+      bounds.extend(position);
+      hasMarkers = true;
+    }
 
     var marker = new google.maps.Marker({
       position: position,
@@ -385,12 +443,7 @@ function displayLocations(locations) {
     });
   }
 
-  if (hasMarkers) {
-    currentMap.fitBounds(bounds, 48);
-    if (addresses.length === 1) {
-      currentMap.setZoom(14);
-    }
-  }
+  applyMapViewport(currentMap, bounds, hasMarkers);
 }
 
 function escapeHtml(text) {
@@ -441,6 +494,7 @@ function locateUser() {
     highlightNearestEvents(userPosition);
   }, function() {
     button.disabled = false;
+    button.classList.remove('active');
     window.alert('Position konnte nicht ermittelt werden.');
   }, {
     enableHighAccuracy: true,

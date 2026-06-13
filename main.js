@@ -14,8 +14,12 @@ window.onload = function() {
 
   loadDate(0);
 
-  $('#date_picker').on('click', '.day_div', function() {
-    loadDate(parseInt(this.dataset.dayIndex, 10));
+  document.getElementById('date_picker').addEventListener('click', function(event) {
+    var button = event.target.closest('.day_div');
+    if (!button) {
+      return;
+    }
+    loadDate(parseInt(button.dataset.dayIndex, 10));
   });
 };
 
@@ -87,7 +91,7 @@ function loadDate(dayIndex) {
 }
 
 function displayLocations(locations) {
-  $('#map').empty();
+  document.getElementById('map').innerHTML = '';
 
   currentMap = new google.maps.Map(document.getElementById('map'), {
     zoom: 11,

@@ -74,15 +74,23 @@ GitHub Actions runs automatically from the workflow:
 
 Each successful run commits updated `days.js` and `cache.pickle`. Pages picks up the new data on the next deploy (usually within a minute).
 
+**While a crawl is running:** the workflow now commits after **each completed day**, so the map updates incrementally (you may still see the "1 von 7 Tagen" banner until all days finish).
+
 **First run:** trigger the workflow manually and let it run — see [How long does a crawl take?](#how-long-does-a-crawl-take) above. Watch the log for lines like `[42/125]` to track progress within each day.
 
 ### 4. Google Maps API key
 
-The map uses the Google Maps JavaScript API. In [Google Cloud Console](https://console.cloud.google.com/):
+The map uses the Google Maps JavaScript API. The **"Oops! Something went wrong"** error almost always means the API key does not allow your Pages URL.
 
-1. Create or use an API key with **Maps JavaScript API** enabled
-2. Replace the key in `index.html`
-3. Restrict the key to your Pages URL, e.g. `https://YOUR_USER.github.io/*`
+In [Google Cloud Console](https://console.cloud.google.com/):
+
+1. Enable **Maps JavaScript API** (and ensure billing is enabled on the project)
+2. Open your API key → **Application restrictions** → **HTTP referrers**
+3. Add your Pages URL, e.g. `https://schumannd.github.io/*` (replace with your username)
+4. Optionally add `http://localhost:*` for local testing
+5. Replace the key in `index.html` if you use a different one
+
+Changes can take a few minutes to propagate. Hard-refresh the page (Ctrl+Shift+R) after updating.
 
 ### 5. Workflow details
 
@@ -114,7 +122,9 @@ To change the schedule, edit the `cron` line in the workflow file. [Cron syntax 
 - **Crawler stops mid-run** — re-run the workflow; it resumes from `crawl_state.json` within the same job. If the job timed out, just trigger it again.
 - **Workflow failed** — open **Actions** → failed run → read logs. Common causes: Cloudflare throttling (increase `GIB_THROTTLE_WAIT_MINUTES` in the workflow), Nominatim rate limits.
 - **Pages shows old data** — check that the crawl workflow committed to the same branch Pages deploys from.
-- **Map loads but no markers** — Google Maps API key may not allow your `github.io` domain.
+- **Map loads but no markers** — Google Maps API key may not allow your `github.io` domain (see [Google Maps API key](#4-google-maps-api-key)).
+- **Only 3 events showing** — old sample `days.js` still deployed; wait for the workflow to commit after day 1, then hard-refresh.
+- **"Noch keine Daten geladen" overlay** — fixed in latest `main.js`; pull/update and redeploy.
 
 ## Alternatives
 

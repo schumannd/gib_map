@@ -31,13 +31,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Configure git for commits
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Run crawler
         env:
           PYTHONUNBUFFERED: '1'
           GIB_THROTTLE_WAIT_MINUTES: '10'
+          GIB_AUTO_COMMIT: '1'
         run: python -u crawl_gib.py
 
-      - name: Commit updated data
+      - name: Commit any remaining changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: Update crawl data

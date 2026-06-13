@@ -5,6 +5,7 @@ from datetime import date, timedelta
 import json
 import time
 import os
+import subprocess
 import _pickle as pickle
 import requests as std_requests
 
@@ -98,9 +99,12 @@ def crawl_days(days):
             'partial_data': {},
         })
         write_days_js(days)
+        maybe_commit_progress('Update crawl data (day {0}/{1})'.format(
+            day_offset + 1, days))
 
     clear_state()
     write_days_js(days)
+    maybe_commit_progress('Update crawl data (complete)')
     log('Crawl complete.')
 
 
@@ -163,6 +167,21 @@ def write_days_js(days):
     js_content = 'var days = {0};'.format(json.dumps(days_array))
     with open(JSON_PATH + DAYS_JS_FILE, 'w') as f:
         f.write(js_content)
+    log('Wrote {0} ({1} day(s))'.format(DAYS_JS_FILE, len(days_array)))
+
+
+def maybe_commit_progress(message):
+    if os.environ.get('GIB_AUTO_COMMIT') != '1':
+        return
+
+    subprocess.run(['git', 'add', DAYS_JS_FILE, CACHE_FILE], check=False)
+    diff = subprocess.run(['git', 'diff', '--staged', '--quiet'])
+    if diff.returncode == 0:
+        return
+
+    subprocess.run(['git', 'commit', '-m', message], check=True)
+    subprocess.run(['git', 'push'], check=True)
+    log('Committed and pushed: {0}'.format(message))
 
 
 def fetch_url(url):

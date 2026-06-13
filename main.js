@@ -17,6 +17,8 @@ window.onload = function() {
   }
 
   showDataStatus(dataStatus);
+  document.getElementById('empty-state').hidden = true;
+  document.getElementById('map').hidden = false;
   loadDate(0);
 
   var datePicker = document.getElementById('date_picker');
@@ -302,9 +304,22 @@ function filterLocationsByQuery(locations, query) {
 }
 
 function displayLocations(locations) {
-  document.getElementById('map').innerHTML = '';
+  var mapElement = document.getElementById('map');
+  mapElement.innerHTML = '';
 
-  currentMap = new google.maps.Map(document.getElementById('map'), {
+  if (window.mapLoadError) {
+    mapElement.innerHTML = '<div class="map-error">' + escapeHtml(window.mapLoadError) + '</div>';
+    return;
+  }
+
+  if (typeof google === 'undefined' || !google.maps || !google.maps.Map) {
+    mapElement.innerHTML =
+      '<div class="map-error">Google Maps konnte nicht geladen werden. ' +
+      'Prüfe den API-Schlüssel in index.html und erlaube deine github.io-Domain.</div>';
+    return;
+  }
+
+  currentMap = new google.maps.Map(mapElement, {
     zoom: 11,
     center: new google.maps.LatLng(52.520008, 13.404954),
     mapTypeId: google.maps.MapTypeId.ROADMAP,

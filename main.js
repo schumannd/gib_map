@@ -422,6 +422,25 @@ function loadDate(dayIndex, options) {
   if (options.updateUrl !== false) {
     syncUrlState();
   }
+
+  trackDayView(day);
+}
+
+function trackDayView(day) {
+  if (typeof window.gibTrack !== 'function') {
+    if (window.GIB_ANALYTICS && window.gibTrackQueue) {
+      window.gibTrackQueue.push({
+        path: window.location.pathname + '?day=' + currentDayIndex,
+        title: day.label
+      });
+    }
+    return;
+  }
+
+  window.gibTrack(
+    window.location.pathname + '?day=' + currentDayIndex,
+    day.label
+  );
 }
 
 function filterLocationsByQuery(locations, query) {

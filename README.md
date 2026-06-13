@@ -109,7 +109,21 @@ In [Google Cloud Console](https://console.cloud.google.com/):
 
 Google requires a billing account but gives ~$200/month free Maps credit — this site typically costs **$0**.
 
-### 6. Workflow details
+### 6. Visitor tracking (optional)
+
+Static GitHub Pages has no server logs. For rudimentary stats, the site supports [GoatCounter](https://www.goatcounter.com) (free, no cookies, privacy-friendly):
+
+1. Create a GoatCounter site
+2. Allowed domain: `https://schumannd.github.io`
+3. In `index.html`, uncomment and set:
+   ```javascript
+   window.GIB_ANALYTICS = 'https://YOUR_CODE.goatcounter.com/count';
+   ```
+4. Push to `main` (auto-deploys UI to `gh-pages`)
+
+You get page views plus which **day tab** people open. Leave `GIB_ANALYTICS` unset to disable tracking entirely.
+
+### 7. Workflow details
 
 | Setting | Value |
 |---------|-------|

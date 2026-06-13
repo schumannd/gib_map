@@ -7,10 +7,15 @@
   --accent-dark: #96281b;
   --border: #e4e1d8;
   --shadow: 0 10px 30px rgba(31, 41, 51, 0.12);
+  --highlight: #fff5f5;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
 }
 
 html,
@@ -20,6 +25,9 @@ body {
 }
 
 body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -49,10 +57,7 @@ body {
 }
 
 #header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  flex-shrink: 0;
   z-index: 3;
   padding: 10px 16px 12px;
   background: rgba(255, 255, 255, 0.96);
@@ -85,6 +90,7 @@ body {
   margin: 0;
   font-size: 1.25rem;
   line-height: 1.2;
+  color: var(--text);
 }
 
 #subtitle {
@@ -109,14 +115,12 @@ body {
 }
 
 #search-bar {
-  position: fixed;
-  top: 78px;
-  left: 16px;
-  right: 16px;
+  flex-shrink: 0;
   z-index: 2;
   display: flex;
   align-items: center;
   gap: 8px;
+  margin: 10px 16px 0;
   padding: 8px 10px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.96);
@@ -144,6 +148,10 @@ body {
   outline: none;
 }
 
+#event-search::placeholder {
+  color: var(--muted);
+}
+
 #clear-search {
   border: none;
   background: var(--bg);
@@ -161,14 +169,12 @@ body {
 }
 
 #date_picker {
-  position: fixed;
-  top: 132px;
-  left: 16px;
-  right: 16px;
+  flex-shrink: 0;
   z-index: 2;
   display: flex;
   gap: 10px;
   overflow-x: auto;
+  margin: 10px 16px 0;
   padding: 4px 2px 10px;
   scrollbar-width: thin;
 }
@@ -183,6 +189,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface);
+  color: var(--text);
   padding: 10px 12px;
   cursor: pointer;
   text-align: left;
@@ -233,57 +240,37 @@ body {
   background: rgba(255, 255, 255, 0.18);
 }
 
-#legend {
-  position: absolute;
-  bottom: 18px;
-  left: 16px;
-  z-index: 2;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px 12px;
+.status-banner {
+  flex-shrink: 0;
+  z-index: 4;
+  margin: 10px 16px 0;
+  padding: 10px 14px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.97);
-  border: 1px solid var(--border);
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: 0.85rem;
   box-shadow: var(--shadow);
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text);
 }
 
-.legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.status-banner.warning {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
 }
 
-.legend-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid rgba(0, 0, 0, 0.25);
-}
-
-.legend-dot-exact {
-  background: #c0392b;
-}
-
-.legend-dot-approx {
-  background: #2563eb;
+.status-banner.info {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
 }
 
 #content-area {
-  position: fixed;
-  top: 204px;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  flex: 1;
+  min-height: 0;
   display: flex;
+  margin-top: 10px;
   z-index: 1;
-}
-
-body.has-status-banner #content-area {
-  top: 244px;
 }
 
 #event-list-panel {
@@ -308,10 +295,19 @@ body.has-status-banner #content-area {
 #event-list-header h2 {
   margin: 0;
   font-size: 0.95rem;
+  color: var(--text);
 }
 
 #list-toggle {
   display: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 #event-list {
@@ -334,6 +330,7 @@ body.has-status-banner #content-area {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
+  color: var(--text);
   text-align: left;
   cursor: pointer;
   position: relative;
@@ -342,7 +339,7 @@ body.has-status-banner #content-area {
 .event-list-item:hover,
 .event-list-item.selected {
   border-color: var(--accent);
-  background: #fff5f5;
+  background: var(--highlight);
 }
 
 .event-list-item:focus-visible {
@@ -356,6 +353,7 @@ body.has-status-banner #content-area {
   font-weight: 600;
   line-height: 1.35;
   padding-right: 28px;
+  color: var(--text);
 }
 
 .event-list-address {
@@ -396,6 +394,45 @@ body.has-status-banner #content-area {
 #map {
   width: 100%;
   height: 100%;
+}
+
+#legend {
+  position: absolute;
+  bottom: 18px;
+  left: 16px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.25);
+}
+
+.legend-dot-exact {
+  background: #c0392b;
+}
+
+.legend-dot-approx {
+  background: #2563eb;
 }
 
 #empty-state {
@@ -439,38 +476,7 @@ body.has-status-banner #content-area {
   padding: 2px 6px;
   border-radius: 6px;
   background: #ece7dc;
-}
-
-.status-banner {
-  position: fixed;
-  top: 78px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 4;
-  max-width: calc(100% - 32px);
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: #fff7ed;
-  border: 1px solid #fdba74;
-  color: #9a3412;
-  font-size: 0.85rem;
-  box-shadow: var(--shadow);
-}
-
-.status-banner.warning {
-  background: #fff7ed;
-  border-color: #fdba74;
-  color: #9a3412;
-}
-
-.status-banner.info {
-  background: #eff6ff;
-  border-color: #93c5fd;
-  color: #1d4ed8;
-}
-
-body.has-status-banner #date_picker {
-  top: 172px;
+  color: var(--text);
 }
 
 .info-window {
@@ -478,6 +484,7 @@ body.has-status-banner #date_picker {
   font-size: 0.92rem;
   position: relative;
   padding-top: 8px;
+  color: #1f2933;
 }
 
 .info-window-close {
@@ -486,7 +493,7 @@ body.has-status-banner #date_picker {
   right: 0;
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: #667085;
   font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
@@ -587,24 +594,8 @@ body.has-status-banner #date_picker {
     width: 100%;
   }
 
-  #search-bar {
-    top: 58px;
-  }
-
-  body.header-open #search-bar {
-    top: 148px;
-  }
-
   #content-area {
-    top: 118px;
-  }
-
-  body.header-open #content-area {
-    top: 208px;
-  }
-
-  body.has-status-banner #content-area {
-    top: 158px;
+    padding-bottom: 56px;
   }
 
   #event-list-panel {
@@ -629,17 +620,10 @@ body.has-status-banner #date_picker {
 
   #list-toggle {
     display: inline-block;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
-    color: var(--text);
-    padding: 6px 12px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    cursor: pointer;
   }
 
   #date_picker {
+    position: fixed;
     top: auto;
     bottom: 0;
     left: 0;
@@ -648,6 +632,7 @@ body.has-status-banner #date_picker {
     max-height: 42vh;
     overflow-y: auto;
     overflow-x: hidden;
+    margin: 0;
     padding: 10px 14px 18px;
     border-top-left-radius: 18px;
     border-top-right-radius: 18px;
@@ -677,8 +662,6 @@ body.has-status-banner #date_picker {
   }
 
   #legend {
-    left: 16px;
-    right: auto;
     bottom: 72px;
   }
 
@@ -700,6 +683,10 @@ body.has-status-banner #date_picker {
 }
 
 @media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
+  }
+
   :root {
     --bg: #111827;
     --surface: #1f2937;
@@ -709,6 +696,7 @@ body.has-status-banner #date_picker {
     --accent-dark: #ef4444;
     --border: #374151;
     --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --highlight: #374151;
   }
 
   #header,
@@ -722,21 +710,17 @@ body.has-status-banner #date_picker {
     background: rgba(31, 41, 55, 0.96);
   }
 
-  .event-list-item:hover,
-  .event-list-item.selected {
-    background: #374151;
+  .day_div.active {
+    color: #fff;
   }
 
   .legend-dot {
     border-color: rgba(255, 255, 255, 0.35);
   }
 
-  #event-search::placeholder {
-    color: #6b7280;
-  }
-
   #stats span {
     background: #111827;
+    color: var(--text);
   }
 
   .day_div.active .day-count {
@@ -745,6 +729,7 @@ body.has-status-banner #date_picker {
 
   #empty-state code {
     background: #374151;
+    color: var(--text);
   }
 
   .status-banner.warning {
@@ -759,7 +744,17 @@ body.has-status-banner #date_picker {
     color: #bfdbfe;
   }
 
+  .info-window {
+    color: #f3f4f6;
+  }
+
   .info-window a {
     color: #fca5a5;
+  }
+
+  .map-error {
+    background: #450a0a;
+    border-color: #991b1b;
+    color: #fecaca;
   }
 }

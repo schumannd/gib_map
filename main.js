@@ -1,12 +1,6 @@
 var BERLIN_CENTER_LAT = 52.5170365;
 var BERLIN_CENTER_LNG = 13.3888599;
-var REGION_BOUNDS = {
-  south: 52.34,
-  west: 12.92,
-  north: 52.60,
-  east: 13.52
-};
-var REGION_CENTER = { lat: 52.47, lng: 13.22 };
+var REGION_CENTER = { lat: 52.46, lng: 13.20 };
 var REGION_DEFAULT_ZOOM = 10;
 var FAVORITES_KEY = 'gib_map_favorites';
 var STALE_DATA_HOURS = 24;
@@ -357,21 +351,18 @@ function showEmptyState(title, message) {
   document.getElementById('empty-state').hidden = false;
   document.getElementById('content-area').hidden = true;
   document.getElementById('data-status').hidden = true;
-  document.body.classList.remove('has-status-banner');
 }
 
 function showDataStatus(status) {
   var banner = document.getElementById('data-status');
   if (!status.message) {
     banner.hidden = true;
-    document.body.classList.remove('has-status-banner');
     return;
   }
 
   banner.hidden = false;
   banner.className = 'status-banner ' + (status.bannerClass || 'info');
   banner.textContent = status.message;
-  document.body.classList.add('has-status-banner');
 }
 
 function countEvents(data) {
@@ -457,18 +448,6 @@ function filterLocationsByQuery(locations, query) {
   return filtered;
 }
 
-function getRegionBounds() {
-  return new google.maps.LatLngBounds(
-    new google.maps.LatLng(REGION_BOUNDS.south, REGION_BOUNDS.west),
-    new google.maps.LatLng(REGION_BOUNDS.north, REGION_BOUNDS.east)
-  );
-}
-
-function isWithinRegion(lat, lng) {
-  return lat >= REGION_BOUNDS.south && lat <= REGION_BOUNDS.north &&
-    lng >= REGION_BOUNDS.west && lng <= REGION_BOUNDS.east;
-}
-
 function clearUserLocation() {
   if (userLocationMarker) {
     userLocationMarker.setMap(null);
@@ -481,28 +460,14 @@ function clearUserLocation() {
   }
 }
 
-function applyMapViewport(map, markerBounds, hasMarkers) {
+function applyMapViewport(map) {
   if (!viewportShouldUpdate) {
     viewportShouldUpdate = true;
     return;
   }
 
-  var regionBounds = getRegionBounds();
-  map.fitBounds(regionBounds, 48);
-
-  if (!hasMarkers) {
-    return;
-  }
-
-  map.fitBounds(markerBounds, 48);
-  google.maps.event.addListenerOnce(map, 'idle', function() {
-    var zoom = map.getZoom();
-    if (zoom > 15) {
-      map.setZoom(15);
-    } else if (zoom < REGION_DEFAULT_ZOOM) {
-      map.fitBounds(regionBounds, 48);
-    }
-  });
+  map.setCenter(REGION_CENTER);
+  map.setZoom(REGION_DEFAULT_ZOOM);
 }
 
 function showMapError(message) {
@@ -541,11 +506,7 @@ function ensureMap() {
     mapTypeId: google.maps.MapTypeId.ROADMAP,
     fullscreenControl: true,
     streetViewControl: false,
-    mapTypeControl: false,
-    restriction: {
-      latLngBounds: getRegionBounds(),
-      strictBounds: false
-    }
+    mapTypeControl: false
   });
   infoWindow = new google.maps.InfoWindow();
   return currentMap;
@@ -712,9 +673,6 @@ function displayLocations(locations) {
     return;
   }
 
-  var bounds = new google.maps.LatLngBounds();
-  var hasMarkers = false;
-
   Object.keys(locations).forEach(function(address) {
     var locationSpots = locations[address];
     var isApproximate =
@@ -722,10 +680,6 @@ function displayLocations(locations) {
       locationSpots[0].lng === BERLIN_CENTER_LNG;
 
     var position = new google.maps.LatLng(locationSpots[0].lat, locationSpots[0].lng);
-    if (isWithinRegion(locationSpots[0].lat, locationSpots[0].lng)) {
-      bounds.extend(position);
-      hasMarkers = true;
-    }
 
     var marker = new google.maps.Marker({
       position: position,
@@ -755,7 +709,7 @@ function displayLocations(locations) {
     });
   }
 
-  applyMapViewport(map, bounds, hasMarkers);
+  applyMapViewport(map);
   buildEventList(locations);
 }
 

@@ -23,119 +23,84 @@ The crawler:
 
 If the crawl stops midway, run `python crawl_gib.py` again — it continues where it left off.
 
-## Deploying to PythonAnywhere
+## Deploying with GitHub Actions + GitHub Pages (recommended, free)
 
-PythonAnywhere is a good place to **host the static map**. Running the **crawler** there depends on your account type.
+This runs the crawler on a schedule and hosts the map as a static site — no server required.
 
-### Can the crawler run on PythonAnywhere?
+### 1. Push the repository to GitHub
 
-| Account | Crawler on PA? | Why |
-|---------|----------------|-----|
-| **Free** | No | Outbound HTTP is restricted to an [allowlist](https://help.pythonanywhere.com/pages/403ForbiddenError/). `gratis-in-berlin.de` is not on it → `CONNECT tunnel failed, response 403`. |
-| **Paid** (Hacker+) | Usually yes | Unrestricted outbound access. Open a **new** Bash console after upgrading. |
-
-If you see `curl: (56) CONNECT tunnel failed, response 403`, you are hitting the proxy block. The crawler now tries several fetch backends and prints a clearer error message.
-
-On **paid** accounts, if `curl_cffi` still fails through the platform proxy, force the `requests` backend:
+If you haven't already:
 
 ```bash
-export GIB_FETCH_BACKEND=requests
-python crawl_gib.py
+git remote add origin git@github.com:YOUR_USER/gib_map.git
+git push -u origin master
 ```
 
-### Recommended setup for free accounts
+The workflow file is already included at [`.github/workflows/crawl.yml`](.github/workflows/crawl.yml).
 
-Run the crawler **locally** or in **GitHub Actions**, then upload the generated files to PythonAnywhere:
+### 2. Enable GitHub Pages
 
-```bash
-# Local machine
-python crawl_gib.py
-scp days.js cache.pickle 20*.json YOUR_USERNAME@ssh.pythonanywhere.com:/home/YOUR_USERNAME/gib_map/
-```
+1. Open your repo on GitHub → **Settings** → **Pages**
+2. Under **Build and deployment** → **Source**, choose **Deploy from a branch**
+3. Branch: **master** (or **main**), folder: **/ (root)**
+4. Save
 
-Or commit `days.js` to git and `git pull` on PythonAnywhere.
+After a minute or two the map will be live at:
 
-### Hosting on PythonAnywhere
+`https://YOUR_USER.github.io/gib_map/`
 
-These steps assume a **Web** app (and **Tasks** on a paid plan for scheduled crawls).
+### 3. Enable the scheduled crawler
 
-#### 1. Upload the project
+GitHub Actions runs automatically from the workflow:
 
-In a Bash console on PythonAnywhere:
+- **Daily** at 05:00 UTC (`cron: '0 5 * * *'`)
+- On **manual trigger**: repo → **Actions** → **Crawl and update map data** → **Run workflow**
 
-```bash
-cd ~
-git clone https://github.com/YOUR_USER/gib_map.git
-cd gib_map
-python3.10 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+Each successful run commits updated `days.js` and `cache.pickle`. Pages picks up the new data on the next deploy (usually within a minute).
 
-Or upload the files via the **Files** tab into `/home/YOUR_USERNAME/gib_map`.
+**First run:** trigger the workflow manually — the initial crawl can take a while (many listings × geocoding). Later runs are faster thanks to `cache.pickle`.
 
-#### 2. Run the crawler (paid accounts only)
+### 4. Google Maps API key
 
-```bash
-cd ~/gib_map
-source .venv/bin/activate
-python crawl_gib.py
-```
+The map uses the Google Maps JavaScript API. In [Google Cloud Console](https://console.cloud.google.com/):
 
-This creates `days.js` and dated `YYYY-MM-DD.json` files. Re-run after interruptions — progress is saved in `crawl_state.json`.
+1. Create or use an API key with **Maps JavaScript API** enabled
+2. Replace the key in `index.html`
+3. Restrict the key to your Pages URL, e.g. `https://YOUR_USER.github.io/*`
 
-Optional environment variables:
+### 5. Workflow details
 
-```bash
-export GIB_THROTTLE_WAIT_MINUTES=10   # wait longer when rate-limited
-export GIB_FETCH_BACKEND=requests   # use on PythonAnywhere if curl_cffi fails
-python crawl_gib.py
-```
+The workflow (`.github/workflows/crawl.yml`):
 
-#### 3. Serve the map as a static site
+| Setting | Value |
+|---------|-------|
+| Runner | `ubuntu-latest` |
+| Timeout | 6 hours (enough for a full 7-day crawl) |
+| Throttle wait | 10 minutes (`GIB_THROTTLE_WAIT_MINUTES`) |
+| Committed files | `days.js`, `cache.pickle` |
 
-1. Open the **Web** tab → **Add a new web app** → **Manual configuration** → choose your Python version.
-2. Under **Static files**, add:
+To change the schedule, edit the `cron` line in the workflow file. [Cron syntax helper](https://crontab.guru/).
 
-| URL | Directory |
-|-----|-----------|
-| `/` | `/home/YOUR_USERNAME/gib_map/` |
-
-3. Set **Website home directory** / ensure `index.html` is served from that folder.
-4. Reload the web app.
-
-Your map will be available at `https://YOUR_USERNAME.pythonanywhere.com/`.
-
-### 4. Schedule daily crawls (paid accounts)
-
-Only works if outbound access to `gratis-in-berlin.de` succeeds from your account (see above).
-
-1. Open the **Tasks** tab.
-2. Create a **Scheduled task** (daily), e.g. `06:00` UTC:
-
-```bash
-cd /home/YOUR_USERNAME/gib_map && .venv/bin/python crawl_gib.py >> /home/YOUR_USERNAME/gib_map/crawl.log 2>&1
-```
-
-3. After the task runs, reload the web app if needed (usually not required for static files).
-
-### 5. Google Maps API key
-
-The map uses the Google Maps JavaScript API. Replace the key in `index.html` with your own, and restrict it to your domain in the [Google Cloud Console](https://console.cloud.google.com/).
+**Private repos:** GitHub Actions minutes count against your quota. Public repos get free unlimited minutes for standard runners.
 
 ## Generated files
 
 | File | Purpose |
 |------|---------|
-| `days.js` | Frontend data for all crawled days |
-| `YYYY-MM-DD.json` | Raw data per day |
-| `crawl_state.json` | Resume checkpoint (temporary) |
-| `cache.pickle` | Geocoding cache |
+| `days.js` | Frontend data for all crawled days (committed by Actions) |
+| `YYYY-MM-DD.json` | Raw data per day (local only, gitignored) |
+| `crawl_state.json` | Resume checkpoint (temporary, gitignored) |
+| `cache.pickle` | Geocoding cache (committed by Actions) |
 
 ## Troubleshooting
 
-- **Empty map** — run `python crawl_gib.py` and confirm `days.js` exists.
-- **Crawler stops mid-run** — run it again; it resumes from `crawl_state.json`.
-- **`CONNECT tunnel failed, response 403` on PythonAnywhere** — free account proxy block; run crawler locally and upload `days.js`, or upgrade to a paid plan.
-- **Cloudflare / throttling** — the crawler waits and retries; increase `GIB_THROTTLE_WAIT_MINUTES` if needed.
-- **Geocoding errors** — check `crawl.log`; Nominatim may rate-limit heavy usage.
+- **Empty map** — run the **Crawl and update map data** workflow manually and confirm `days.js` was committed.
+- **Crawler stops mid-run** — re-run the workflow; it resumes from `crawl_state.json` within the same job. If the job timed out, just trigger it again.
+- **Workflow failed** — open **Actions** → failed run → read logs. Common causes: Cloudflare throttling (increase `GIB_THROTTLE_WAIT_MINUTES` in the workflow), Nominatim rate limits.
+- **Pages shows old data** — check that the crawl workflow committed to the same branch Pages deploys from.
+- **Map loads but no markers** — Google Maps API key may not allow your `github.io` domain.
+
+## Alternatives
+
+- **Local cron + GitHub Pages** — run `python crawl_gib.py` on your machine on a schedule, commit and push `days.js` yourself.
+- **PythonAnywhere** — paid plans can run the crawler, but free accounts block outbound access to `gratis-in-berlin.de` (proxy 403).

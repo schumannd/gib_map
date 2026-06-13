@@ -147,6 +147,8 @@ function displayLocations(locations) {
 
   var infowindow = new google.maps.InfoWindow();
   var addresses = Object.keys(locations);
+  var bounds = new google.maps.LatLngBounds();
+  var hasMarkers = false;
 
   addresses.forEach(function(address, index) {
     var locationSpots = locations[address];
@@ -154,8 +156,12 @@ function displayLocations(locations) {
       locationSpots[0].lat === BERLIN_CENTER_LAT &&
       locationSpots[0].lng === BERLIN_CENTER_LNG;
 
+    var position = new google.maps.LatLng(locationSpots[0].lat, locationSpots[0].lng);
+    bounds.extend(position);
+    hasMarkers = true;
+
     var marker = new google.maps.Marker({
-      position: new google.maps.LatLng(locationSpots[0].lat, locationSpots[0].lng),
+      position: position,
       map: currentMap,
       title: locationSpots[0].title,
       icon: isApproximate
@@ -178,6 +184,13 @@ function displayLocations(locations) {
       };
     })(marker, address));
   });
+
+  if (hasMarkers) {
+    currentMap.fitBounds(bounds, 48);
+    if (addresses.length === 1) {
+      currentMap.setZoom(14);
+    }
+  }
 }
 
 function escapeHtml(text) {

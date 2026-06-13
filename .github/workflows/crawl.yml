@@ -46,6 +46,12 @@ jobs:
           GIB_THROTTLE_WAIT_MINUTES: '10'
         run: python -u crawl_gib.py
 
+      - name: Verify crawl output
+        run: |
+          test -s days.js
+          python3 -c "import pathlib; text=pathlib.Path('days.js').read_text(); assert 'daysMeta' in text, 'daysMeta missing'"
+          echo "days.js size: $(wc -c < days.js) bytes"
+
       - name: Prepare static site
         run: |
           if [ ! -s days.js ]; then

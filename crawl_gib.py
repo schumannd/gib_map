@@ -1,7 +1,7 @@
 from bs4 import BeautifulSoup
 from curl_cffi import requests as http
 from geopy.geocoders import Nominatim
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 import json
 import re
 import time
@@ -138,11 +138,19 @@ def crawl_days(days):
     start_day, state = resolve_start_day(state, days, today)
 
     if start_day >= days:
-        log('All {0} days already crawled — regenerating days.js'.format(days))
+        log('All {0} days already on disk for {1} — regenerating days.js only'.format(
+            days, today.isoformat()))
         write_days_js(days)
         clear_state()
         log('Crawl complete.')
         return
+
+    if start_day > 0:
+        log('Incremental crawl: skipping {0} finished day(s), crawling from day {1}/{2}'.format(
+            start_day, start_day + 1, days))
+    else:
+        log('Full crawl window: {0} through {1}'.format(
+            today.isoformat(), (today + timedelta(days=days - 1)).isoformat()))
 
     for day_offset in range(start_day, days):
         target_date = today + timedelta(days=day_offset)
@@ -270,10 +278,76 @@ def write_days_js(days):
             'data': data,
         })
 
-    js_content = 'var days = {0};'.format(json.dumps(days_array))
+    days_meta = build_days_meta(days_array, days)
+    js_content = 'var days = {0};\nvar daysMeta = {1};'.format(
+        json.dumps(days_array, ensure_ascii=False),
+        json.dumps(days_meta, ensure_ascii=False),
+    )
     with open(DAYS_JS_FILE, 'w') as f:
         f.write(js_content)
     log('Wrote {0} ({1} day(s))'.format(DAYS_JS_FILE, len(days_array)))
+    log_crawl_summary(days_array, days_meta)
+
+
+def count_events_in_data(data):
+    total = 0
+    for tip_list in data.values():
+        total += len(tip_list)
+    return total
+
+
+def build_days_meta(days_array, window_days):
+    return {
+        'generatedAt': datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z'),
+        'windowStart': date.today().isoformat(),
+        'windowDays': window_days,
+        'days': [{
+            'date': day['date'],
+            'label': day['label'],
+            'events': count_events_in_data(day['data']),
+            'locations': len(day['data']),
+        } for day in days_array],
+    }
+
+
+def log_crawl_summary(days_array, days_meta):
+    if not days_array:
+        log('Crawl summary: no days written')
+        return
+
+    log('Crawl summary:')
+    total_events = 0
+    total_locations = 0
+    for day_info in days_meta['days']:
+        total_events += day_info['events']
+        total_locations += day_info['locations']
+        log('  {0} ({1}): {2} events, {3} locations'.format(
+            day_info['label'], day_info['date'], day_info['events'], day_info['locations']))
+    log('  Total: {0} events, {1} locations across {2} days'.format(
+        total_events, total_locations, len(days_array)))
+
+    summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
+    if not summary_path:
+        return
+
+    lines = [
+        '## Crawl summary',
+        '',
+        '| Day | Date | Events | Locations |',
+        '| --- | --- | ---: | ---: |',
+    ]
+    for day_info in days_meta['days']:
+        lines.append('| {0} | {1} | {2} | {3} |'.format(
+            day_info['label'], day_info['date'], day_info['events'], day_info['locations']))
+    lines.extend([
+        '',
+        '**Total:** {0} events, {1} locations ({2} days)'.format(
+            total_events, total_locations, len(days_array)),
+        '',
+        'Generated at: `{0}`'.format(days_meta['generatedAt']),
+    ])
+    with open(summary_path, 'a') as summary_file:
+        summary_file.write('\n'.join(lines) + '\n')
 
 
 def fetch_url(url):

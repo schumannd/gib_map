@@ -77,9 +77,22 @@ Pushing changes to `index.html`, `main.js`, or `base.css` on **`main`** also tri
 
 **Actions** → **Crawl and deploy map** → **Run workflow**
 
-- Runs daily at 05:00 UTC
+- Runs **automatically every day at 05:00 UTC** (see `cron` in [`.github/workflows/crawl.yml`](.github/workflows/crawl.yml))
 - Crawls, then deploys static files to **`gh-pages`**
-- Geocoding cache persists via GitHub Actions cache (not in git)
+- Geocoding cache and per-day JSON persist via GitHub Actions cache (not in git)
+- Pushes to **`main`** that change `index.html`, `main.js`, or `base.css` auto-deploy UI to **`gh-pages`** via [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml), keeping existing `days.js`
+
+#### Daily incremental crawl
+
+Each run covers a rolling **7-day window** (today through today+6). On a normal daily re-run:
+
+1. **Stale day files drop out** — yesterday's "today" JSON is deleted
+2. **Six existing days are skipped** — JSON already on disk from the Actions cache
+3. **Only the new 7th day is crawled** (~125 listings, ~30–45 min)
+
+If the cache is cold or the window shifted completely, more days may be recrawled. Interrupted runs resume via `data/crawl_state.json`.
+
+The workflow writes a **crawl summary** (events/locations per day) to the Actions job summary. `days.js` includes a `daysMeta.generatedAt` timestamp shown in the UI.
 
 ### 5. Google Maps API key
 
@@ -107,7 +120,7 @@ Google requires a billing account but gives ~$200/month free Maps credit — thi
 
 | File | Purpose |
 |------|---------|
-| `days.js` | Frontend data (deployed to `gh-pages` only) |
+| `days.js` | Frontend data (deployed to `gh-pages` only; includes `daysMeta`) |
 | `data/YYYY-MM-DD.json` | Raw data per day (local / CI only) |
 | `data/crawl_state.json` | Resume checkpoint (temporary) |
 | `cache.pickle` | Geocoding cache (Actions cache only) |

@@ -21,7 +21,41 @@ window.onload = function() {
     }
     loadDate(parseInt(button.dataset.dayIndex, 10));
   });
+
+  document.getElementById('date_picker').addEventListener('keydown', handleDayPickerKeydown);
 };
+
+function handleDayPickerKeydown(event) {
+  var buttons = Array.prototype.slice.call(document.querySelectorAll('.day_div'));
+  if (!buttons.length) {
+    return;
+  }
+
+  var currentIndex = buttons.findIndex(function(button) {
+    return button.classList.contains('active');
+  });
+  if (currentIndex < 0) {
+    currentIndex = 0;
+  }
+
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+    event.preventDefault();
+    loadDate(Math.min(currentIndex + 1, buttons.length - 1));
+    buttons[Math.min(currentIndex + 1, buttons.length - 1)].focus();
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    loadDate(Math.max(currentIndex - 1, 0));
+    buttons[Math.max(currentIndex - 1, 0)].focus();
+  } else if (event.key === 'Home') {
+    event.preventDefault();
+    loadDate(0);
+    buttons[0].focus();
+  } else if (event.key === 'End') {
+    event.preventDefault();
+    loadDate(buttons.length - 1);
+    buttons[buttons.length - 1].focus();
+  }
+}
 
 function buildDayPicker() {
   var picker = document.getElementById('date_picker');
@@ -38,6 +72,11 @@ function buildDayPicker() {
     button.type = 'button';
     button.className = 'day_div';
     button.dataset.dayIndex = i;
+    button.setAttribute('role', 'tab');
+    button.setAttribute('aria-selected', i === currentDayIndex ? 'true' : 'false');
+    button.setAttribute('aria-controls', 'map');
+    button.id = 'day-tab-' + i;
+    button.tabIndex = i === currentDayIndex ? 0 : -1;
     button.innerHTML =
       '<span class="day-label">' + escapeHtml(day.label) + '</span>' +
       '<span class="day-date">' + formatDate(day.date) + '</span>' +
@@ -80,12 +119,16 @@ function loadDate(dayIndex) {
   var day = days[dayIndex];
 
   document.querySelectorAll('.day_div').forEach(function(button) {
-    button.classList.toggle('active', parseInt(button.dataset.dayIndex, 10) === dayIndex);
+    var isActive = parseInt(button.dataset.dayIndex, 10) === dayIndex;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    button.tabIndex = isActive ? 0 : -1;
   });
 
   document.getElementById('event-count').textContent = countEvents(day.data) + ' Events';
   document.getElementById('location-count').textContent = countLocations(day.data) + ' Orte';
   document.getElementById('subtitle').textContent = day.label + ' · ' + formatDate(day.date);
+  document.getElementById('map').setAttribute('aria-labelledby', 'day-tab-' + dayIndex);
 
   displayLocations(day.data);
 }

@@ -21,7 +21,7 @@
     </div>
   </header>
 
-  <nav id="date_picker" aria-label="Tag auswählen"></nav>
+  <nav id="date_picker" aria-label="Tag auswählen" role="tablist"></nav>
 
   <div id="legend">
     <span class="legend-item"><span class="legend-dot legend-dot-exact"></span> Genauer Ort</span>
@@ -33,7 +33,7 @@
     <p>Führe <code>python crawl_gib.py</code> aus, um Events zu laden.</p>
   </div>
 
-  <div id="map"></div>
+  <div id="map" role="tabpanel" aria-labelledby="day-tab-0"></div>
 
   <footer id="site-footer">
     <a href="https://www.gratis-in-berlin.de/" target="_blank" rel="noopener">Event-Daten von gratis-in-berlin.de</a>

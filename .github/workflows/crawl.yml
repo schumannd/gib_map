@@ -33,8 +33,9 @@ jobs:
 
       - name: Run crawler
         env:
+          PYTHONUNBUFFERED: '1'
           GIB_THROTTLE_WAIT_MINUTES: '10'
-        run: python crawl_gib.py
+        run: python -u crawl_gib.py
 
       - name: Commit updated data
         uses: stefanzweifel/git-auto-commit-action@v5

@@ -41,6 +41,10 @@ WEEKDAYS_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 CACHE = None
 
 
+def log(message):
+    print(message, flush=True)
+
+
 class CachedLocation(object):
     def __init__(self, latitude, longitude):
         self.latitude = latitude
@@ -51,6 +55,10 @@ def main():
     abspath = os.path.abspath(__file__)
     dname = os.path.dirname(abspath)
     os.chdir(dname)
+
+    log('Starting crawler (output unbuffered for CI logs).')
+    log('Crawl settings: {0} days, backends={1}, throttle_wait={2} min'.format(
+        CRAWL_DAYS, ','.join(FETCH_BACKENDS), THROTTLE_WAIT_MINUTES))
 
     remove_yesterday()
     crawl_days(CRAWL_DAYS)
@@ -75,7 +83,7 @@ def crawl_days(days):
         resume_tip_index = state.get('tip_index', 0) if day_offset == start_day else 0
         partial_data = state.get('partial_data', {}) if day_offset == start_day else {}
 
-        print('Crawling day {0}/{1}: {2}'.format(
+        log('Crawling day {0}/{1}: {2}'.format(
             day_offset + 1, days, target_date.strftime('%Y-%m-%d')))
 
         day_data = get_and_save_data_for_date(
@@ -93,7 +101,7 @@ def crawl_days(days):
 
     clear_state()
     write_days_js(days)
-    print('Crawl complete.')
+    log('Crawl complete.')
 
 
 def load_state():
@@ -104,7 +112,7 @@ def load_state():
         state = json.load(f)
 
     if state:
-        print('Resuming from day {0}, tip {1}'.format(
+        log('Resuming from day {0}, tip {1}'.format(
             state.get('day_offset', 0) + 1,
             state.get('tip_index', 0) + 1,
         ))
@@ -158,6 +166,8 @@ def write_days_js(days):
 
 
 def fetch_url(url):
+    log('Fetching {0}'.format(url))
+
     while True:
         throttled = False
 
@@ -168,14 +178,14 @@ def fetch_url(url):
                 except Exception as err:
                     if is_proxy_blocked_error(err):
                         raise proxy_blocked_error(url)
-                    print('Request error ({0}/{1}, {2}): {3}'.format(
+                    log('Request error ({0}/{1}, {2}): {3}'.format(
                         attempt + 1, FETCH_RETRIES, backend, err))
                     continue
 
                 if not is_cloudflare_challenge(html):
                     return html
 
-                print('Cloudflare challenge ({0}/{1}, {2})'.format(
+                log('Cloudflare challenge ({0}/{1}, {2})'.format(
                     attempt + 1, FETCH_RETRIES, backend))
 
             if attempt + 1 >= FETCH_RETRIES:
@@ -259,7 +269,7 @@ def proxy_blocked_error(url):
 
 def wait_for_throttle(context):
     wait_seconds = THROTTLE_WAIT_MINUTES * 60
-    print('Throttled on {0}. Waiting {1} minutes before retrying...'.format(
+    log('Throttled on {0}. Waiting {1} minutes before retrying...'.format(
         context, THROTTLE_WAIT_MINUTES))
     time.sleep(wait_seconds)
 
@@ -280,7 +290,7 @@ def get_and_save_data_for_date(target_date, start_tip_index=0, partial_data=None
         raise RuntimeError('Could not find tipps-overview for {0}'.format(date_str))
 
     tip_elements = tipps.find_all('li')
-    print('{0} listings found'.format(len(tip_elements)))
+    log('{0} listings found'.format(len(tip_elements)))
 
     final_json = partial_data or {}
     taken_locations = rebuild_taken_locations(final_json)
@@ -302,7 +312,7 @@ def get_and_save_data_for_date(target_date, start_tip_index=0, partial_data=None
 
         address = ''.join(map_tipp.text.split(' - ')[:-1])
         address = ' '.join(address.strip().lower().split())
-        print('[{0}/{1}] {2}'.format(tip_index + 1, len(tip_elements), address))
+        log('[{0}/{1}] {2}'.format(tip_index + 1, len(tip_elements), address))
 
         lat, lng = get_lat_lng(address)
 
@@ -386,7 +396,7 @@ def try_to_get_location(address, iteration):
         try:
             new_location = geolocator.geocode(cleaned_address)
         except Exception as err:
-            print('Geocoder error: {0}'.format(err))
+            log('Geocoder error: {0}'.format(err))
             wait_for_throttle(cleaned_address)
             continue
 

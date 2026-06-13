@@ -1,0 +1,49 @@
+name: Deploy to GitHub Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - main.js
+      - base.css
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare static site
+        run: |
+          if [ ! -s days.js ]; then
+            if git fetch origin master 2>/dev/null && git show origin/master:days.js > days.js 2>/dev/null; then
+              echo "Using days.js from origin/master (last successful crawl commit)"
+            else
+              echo "var days = [];" > days.js
+              echo "::warning::No days.js found — map will be empty until a crawl completes"
+            fi
+          else
+            echo "Using days.js from workspace"
+          fi
+
+          mkdir -p _site/lib
+          cp index.html main.js base.css days.js _site/
+          cp lib/jquery.js _site/lib/
+          echo "Deploying $(wc -c < days.js) bytes of days.js"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: _site
+          force_orphan: true

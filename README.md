@@ -58,11 +58,23 @@ The workflow is at [`.github/workflows/crawl.yml`](.github/workflows/crawl.yml).
 3. Branch: **`gh-pages`** / **/ (root)**
 4. Save
 
-The map will be at `https://YOUR_USER.github.io/gib_map/` after the first successful workflow run.
+The map will be at `https://YOUR_USER.github.io/gib_map/` after the first deploy.
 
 > If Pages was previously set to **`main`**, change it to **`gh-pages`**.
 
-### 3. Run the crawler
+### 3. First deploy (get the site online immediately)
+
+Your full crawl data lives on the **`master`** branch (commit before we stopped committing data to git). Until a new crawl finishes, deploy from there:
+
+1. **Actions** → **Deploy to GitHub Pages** → **Run workflow**
+
+This creates the **`gh-pages`** branch and publishes the site with:
+- `index.html` from **`main`** (your new API key)
+- `days.js` from **`origin/master`** (last successful 7-day crawl)
+
+Pushing changes to `index.html`, `main.js`, or `base.css` on **`main`** also triggers this deploy automatically.
+
+### 4. Run the crawler (daily updates)
 
 **Actions** → **Crawl and deploy map** → **Run workflow**
 
@@ -70,7 +82,7 @@ The map will be at `https://YOUR_USER.github.io/gib_map/` after the first succes
 - Crawls, then deploys static files to **`gh-pages`**
 - Geocoding cache persists via GitHub Actions cache (not in git)
 
-### 4. Google Maps API key
+### 5. Google Maps API key
 
 The **"Oops! Something went wrong"** error means the API key does not allow your Pages URL.
 
@@ -79,11 +91,11 @@ In [Google Cloud Console](https://console.cloud.google.com/):
 1. Enable **Maps JavaScript API** (billing account required; see note below)
 2. API key → **HTTP referrers** → add `https://YOUR_USER.github.io/*`
 3. For local dev: `http://localhost/*`
-4. Put the key in `index.html` on **`main`** and re-run the workflow to deploy
+4. Put the key in `index.html` on **`main`**, then run **Deploy to GitHub Pages** (or push to `main`)
 
 Google requires a billing account but gives ~$200/month free Maps credit — this site typically costs **$0**.
 
-### 5. Workflow details
+### 6. Workflow details
 
 | Setting | Value |
 |---------|-------|
@@ -102,8 +114,15 @@ Google requires a billing account but gives ~$200/month free Maps credit — thi
 
 ## Troubleshooting
 
-- **Empty map** — run **Crawl and deploy map**; confirm Pages uses **`gh-pages`**
-- **Commit step failed on `main`** — old workflow; pull latest `main` (data deploys to `gh-pages` now)
+- **No `gh-pages` branch** — run **Deploy to GitHub Pages** once (see step 3 above).
+- **Empty map** — confirm Pages uses **`gh-pages`**, not **`main`**.
+- **Recover crawl data locally** — full 7-day data is on `origin/master`:
+  ```bash
+  git fetch origin
+  git show origin/master:days.js > days.js
+  ```
+  (Commit `8ae7411` never reached GitHub — it only existed on the Actions runner.)
+- **Commit step failed on `main`** — old workflow; data may be on **`origin/master`** instead.
 - **Only 3 events** — old deploy; re-run workflow after crawl completes
 - **Map error** — fix API key referrers for `github.io` (see above)
 - **Crawler stops mid-run** — re-run workflow; resumes within the same job via `crawl_state.json`

@@ -479,11 +479,17 @@ body {
   color: var(--text);
 }
 
+/* Google Maps info windows always use a light popup background. */
 .info-window {
   max-width: 260px;
   font-size: 0.92rem;
   position: relative;
   padding-top: 8px;
+  color: #1f2933;
+}
+
+.info-window strong,
+.info-window li {
   color: #1f2933;
 }
 
@@ -516,7 +522,7 @@ body {
 }
 
 .info-window a {
-  color: var(--accent);
+  color: #c0392b;
   text-decoration: none;
 }
 
@@ -742,14 +748,6 @@ body {
     background: #1e3a8a;
     border-color: #3b82f6;
     color: #bfdbfe;
-  }
-
-  .info-window {
-    color: #f3f4f6;
-  }
-
-  .info-window a {
-    color: #fca5a5;
   }
 
   .map-error {

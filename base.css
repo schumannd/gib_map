@@ -69,9 +69,61 @@ body {
   font-weight: 600;
 }
 
-#date_picker {
+#search-bar {
   position: fixed;
   top: 78px;
+  left: 16px;
+  right: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+#search-bar label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+#event-search {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.95rem;
+  outline: none;
+}
+
+#clear-search {
+  border: none;
+  background: var(--bg);
+  color: var(--muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+#clear-search:hover {
+  color: var(--text);
+}
+
+#date_picker {
+  position: fixed;
+  top: 132px;
   left: 16px;
   right: 16px;
   z-index: 2;
@@ -177,7 +229,7 @@ body {
 #map {
   width: 100%;
   height: 100%;
-  padding-top: 150px;
+  padding-top: 204px;
 }
 
 #empty-state {
@@ -233,11 +285,11 @@ body {
 }
 
 body.has-status-banner #date_picker {
-  top: 118px;
+  top: 172px;
 }
 
 body.has-status-banner #map {
-  padding-top: 190px;
+  padding-top: 244px;
 }
 
 .info-window {
@@ -317,11 +369,15 @@ body.has-status-banner #map {
     --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   }
 
-  #header,
+  #search-bar,
   #legend,
   #site-footer,
   .day_div {
     background: rgba(31, 41, 55, 0.96);
+  }
+
+  #event-search::placeholder {
+    color: #6b7280;
   }
 
   #stats span {

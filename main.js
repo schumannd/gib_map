@@ -2,6 +2,7 @@ var BERLIN_CENTER_LAT = 52.5170365;
 var BERLIN_CENTER_LNG = 13.3888599;
 var currentMap = null;
 var currentDayIndex = 0;
+var currentSearchQuery = '';
 var EXPECTED_DAYS = 7;
 
 window.onload = function() {
@@ -25,6 +26,21 @@ window.onload = function() {
   });
 
   document.getElementById('date_picker').addEventListener('keydown', handleDayPickerKeydown);
+
+  var searchInput = document.getElementById('event-search');
+  var clearSearchButton = document.getElementById('clear-search');
+  searchInput.addEventListener('input', function() {
+    currentSearchQuery = searchInput.value.trim().toLowerCase();
+    clearSearchButton.hidden = !currentSearchQuery;
+    loadDate(currentDayIndex);
+  });
+  clearSearchButton.addEventListener('click', function() {
+    searchInput.value = '';
+    currentSearchQuery = '';
+    clearSearchButton.hidden = true;
+    loadDate(currentDayIndex);
+    searchInput.focus();
+  });
 };
 
 function handleDayPickerKeydown(event) {
@@ -222,12 +238,46 @@ function loadDate(dayIndex) {
     button.tabIndex = isActive ? 0 : -1;
   });
 
-  document.getElementById('event-count').textContent = countEvents(day.data) + ' Events';
-  document.getElementById('location-count').textContent = countLocations(day.data) + ' Orte';
-  document.getElementById('subtitle').textContent = day.label + ' · ' + formatDate(day.date);
   document.getElementById('map').setAttribute('aria-labelledby', 'day-tab-' + dayIndex);
+  document.getElementById('subtitle').textContent = day.label + ' · ' + formatDate(day.date);
 
-  displayLocations(day.data);
+  var filteredData = filterLocationsByQuery(day.data, currentSearchQuery);
+  var filteredEvents = countEvents(filteredData);
+  var totalEvents = countEvents(day.data);
+
+  if (currentSearchQuery) {
+    document.getElementById('event-count').textContent =
+      filteredEvents + ' / ' + totalEvents + ' Events';
+  } else {
+    document.getElementById('event-count').textContent = totalEvents + ' Events';
+  }
+  document.getElementById('location-count').textContent = countLocations(filteredData) + ' Orte';
+
+  displayLocations(filteredData);
+}
+
+function filterLocationsByQuery(locations, query) {
+  if (!query) {
+    return locations;
+  }
+
+  var filtered = {};
+  for (var address in locations) {
+    if (!locations.hasOwnProperty(address)) {
+      continue;
+    }
+
+    var matches = locations[address].filter(function(eventItem) {
+      return eventItem.title.toLowerCase().indexOf(query) !== -1 ||
+        address.indexOf(query) !== -1;
+    });
+
+    if (matches.length) {
+      filtered[address] = matches;
+    }
+  }
+
+  return filtered;
 }
 
 function displayLocations(locations) {

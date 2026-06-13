@@ -23,6 +23,22 @@ The crawler:
 
 If the crawl stops midway, run `python crawl_gib.py` again — it continues where it left off.
 
+### How long does a crawl take?
+
+Rough math for a **first run** (empty geocoding cache):
+
+| Step | Per listing | × ~875 listings (7 × ~125/day) |
+|------|-------------|-------------------------------|
+| Detail page fetch | ~1–2 s | ~15–30 min |
+| Request delay | 0.5 s | ~7 min |
+| Geocoding (cache miss) | 2 s | ~30 min (fewer if addresses repeat) |
+
+**Expect 2–4 hours** for the first full 7-day crawl on GitHub Actions. Your log showing ~4 listings in the first 40 s is normal — that's mostly fetch time, not slowness.
+
+**Later runs** are much faster: `cache.pickle` skips most geocoding, and many listings share addresses. Daily runs often finish in **30–60 minutes**, sometimes less.
+
+The workflow timeout is 6 hours, which is enough even with Cloudflare retry waits.
+
 ## Deploying with GitHub Actions + GitHub Pages (recommended, free)
 
 This runs the crawler on a schedule and hosts the map as a static site — no server required.
@@ -58,7 +74,7 @@ GitHub Actions runs automatically from the workflow:
 
 Each successful run commits updated `days.js` and `cache.pickle`. Pages picks up the new data on the next deploy (usually within a minute).
 
-**First run:** trigger the workflow manually — the initial crawl can take a while (many listings × geocoding). Later runs are faster thanks to `cache.pickle`.
+**First run:** trigger the workflow manually and let it run — see [How long does a crawl take?](#how-long-does-a-crawl-take) above. Watch the log for lines like `[42/125]` to track progress within each day.
 
 ### 4. Google Maps API key
 

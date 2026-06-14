@@ -49,10 +49,18 @@
     </div>
   </header>
 
-  <div id="search-bar">
-    <label for="event-search">Events filtern</label>
-    <input id="event-search" type="search" placeholder="Titel durchsuchen…" autocomplete="off" />
-    <button id="clear-search" type="button" hidden aria-label="Suche löschen">×</button>
+  <div id="filters-row">
+    <div id="search-bar">
+      <label for="event-search">Events filtern</label>
+      <input id="event-search" type="search" placeholder="Titel durchsuchen…" autocomplete="off" />
+      <button id="clear-search" type="button" hidden aria-label="Suche löschen">×</button>
+    </div>
+    <div id="time-filter" class="time-filter" hidden>
+      <button id="time-filter-toggle" type="button" aria-pressed="false" aria-controls="time-filter-value">
+        Ab Uhrzeit
+      </button>
+      <input id="time-filter-value" type="time" aria-label="Früheste Startzeit" disabled />
+    </div>
   </div>
 
   <nav id="date_picker" aria-label="Tag auswählen" role="tablist">

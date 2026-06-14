@@ -31,6 +31,8 @@ STREET_WORD_PATTERN = (
 )
 
 CRAWL_DAYS = 7
+EVENT_SCHEMA_VERSION = 2
+META_KEY = '_meta'
 FETCH_RETRIES = 5
 REQUEST_DELAY_SECONDS = 0.5
 GEOCODE_DELAY_SECONDS = 2
@@ -177,7 +179,10 @@ def is_day_file_complete(target_date):
     except (json.JSONDecodeError, OSError):
         return False
 
-    return bool(data) and count_events_in_data(data) > 0
+    if get_day_file_schema(data) < EVENT_SCHEMA_VERSION:
+        return False
+
+    return bool(list(iter_day_data(data))) and count_events_in_data(data) > 0
 
 
 def log_data_dir_status(window_days):
@@ -201,7 +206,7 @@ def log_data_dir_status(window_days):
             with open(path, 'r') as f:
                 data = json.load(f)
             log('  {0}: ready ({1} events, {2} locations)'.format(
-                date_str, count_events_in_data(data), len(data)))
+                date_str, count_events_in_data(data), len(list(iter_day_data(data)))))
         else:
             log('  {0}: missing or incomplete'.format(date_str))
 
@@ -392,7 +397,7 @@ def write_days_js(days):
         days_array.append({
             'date': date_str,
             'label': day_label(day_offset, target_date),
-            'data': data,
+            'data': export_day_data(data),
         })
 
     days_meta = build_days_meta(days_array, days)
@@ -408,9 +413,58 @@ def write_days_js(days):
 
 def count_events_in_data(data):
     total = 0
-    for tip_list in data.values():
+    for key, tip_list in iter_day_data(data):
         total += len(tip_list)
     return total
+
+
+def iter_day_data(data):
+    for key, tip_list in data.items():
+        if key == META_KEY:
+            continue
+        yield key, tip_list
+
+
+def export_day_data(data):
+    return {key: tip_list for key, tip_list in iter_day_data(data)}
+
+
+def get_day_file_schema(data):
+    meta = data.get(META_KEY)
+    if isinstance(meta, dict):
+        return meta.get('schema', 0)
+    return 0
+
+
+def parse_start_time_from_text(text):
+    normalized = ' '.join(text.split())
+    match = re.search(r'Anfangszeit:\s*(\d{1,2}):(\d{2})', normalized, re.I)
+    if match:
+        return '{0:02d}:{1}'.format(int(match.group(1)), match.group(2))
+    match = re.search(r'\bab\s+(\d{1,2}):(\d{2})', normalized, re.I)
+    if match:
+        return '{0:02d}:{1}'.format(int(match.group(1)), match.group(2))
+    match = re.search(r'(\d{1,2}):(\d{2})\s*Uhr', normalized)
+    if match:
+        return '{0:02d}:{1}'.format(int(match.group(1)), match.group(2))
+    return None
+
+
+def extract_event_start_time(tip_soup):
+    map_tipp = tip_soup.find('div', 'mapTipp')
+    date_el = None
+    if map_tipp:
+        date_el = map_tipp.find_next('div', 'dateTipp')
+    if not date_el:
+        date_el = tip_soup.find('span', 'field_date_from')
+    if not date_el:
+        return None
+    return parse_start_time_from_text(date_el.get_text(' ', strip=True))
+
+
+def stamp_day_schema(day_data):
+    day_data[META_KEY] = {'schema': EVENT_SCHEMA_VERSION}
+    return day_data
 
 
 def build_days_meta(days_array, window_days):
@@ -418,11 +472,12 @@ def build_days_meta(days_array, window_days):
         'generatedAt': datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z'),
         'windowStart': date.today().isoformat(),
         'windowDays': window_days,
+        'schemaVersion': EVENT_SCHEMA_VERSION,
         'days': [{
             'date': day['date'],
             'label': day['label'],
             'events': count_events_in_data(day['data']),
-            'locations': len(day['data']),
+            'locations': len(list(iter_day_data(day['data']))),
         } for day in days_array],
     }
 
@@ -618,12 +673,15 @@ def get_and_save_data_for_date(target_date, start_tip_index=0, partial_data=None
 
         lat, lng = get_lat_lng(address)
 
+        start_time = extract_event_start_time(tip_soup)
         tip_object = {
             'title': title_el.text.strip(),
             'url': BASE_URL + tip_url,
             'lat': lat,
             'lng': lng,
         }
+        if start_time:
+            tip_object['startTime'] = start_time
 
         if lat in taken_locations and lng in taken_locations[lat]:
             final_json[taken_locations[lat][lng]].append(tip_object)
@@ -631,6 +689,8 @@ def get_and_save_data_for_date(target_date, start_tip_index=0, partial_data=None
             taken_locations.setdefault(lat, {})
             taken_locations[lat][lng] = address
             final_json.setdefault(address, []).append(tip_object)
+
+        stamp_day_schema(final_json)
 
         with open(day_json_path(target_date), 'w') as f:
             json.dump(final_json, f)
@@ -647,7 +707,7 @@ def get_and_save_data_for_date(target_date, start_tip_index=0, partial_data=None
 
 def rebuild_taken_locations(final_json):
     taken_locations = {}
-    for address, tip_list in final_json.items():
+    for address, tip_list in iter_day_data(final_json):
         if not tip_list:
             continue
         lat = tip_list[0]['lat']

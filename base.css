@@ -115,17 +115,94 @@ body {
 }
 
 #search-bar {
-  flex-shrink: 0;
+  flex: 1;
   z-index: 2;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 10px 16px 0;
   padding: 8px 10px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+}
+
+#filters-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin: 10px 16px 0;
+}
+
+#filters-row #search-bar {
+  margin: 0;
+}
+
+.time-filter {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.time-filter.enabled {
+  border-color: var(--accent);
+  background: #fffaf9;
+}
+
+#time-filter-toggle {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 4px;
+  white-space: nowrap;
+}
+
+#time-filter-toggle.active {
+  color: var(--accent);
+}
+
+#time-filter-value {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 4px 0;
+  min-width: 5.5rem;
+}
+
+#time-filter-value:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.event-list-time,
+.info-window-time {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.event-list-time {
+  display: block;
+  width: fit-content;
+  margin-top: 4px;
+  margin-bottom: 2px;
 }
 
 #search-bar label {
@@ -600,6 +677,15 @@ body {
     width: 100%;
   }
 
+  #filters-row {
+    flex-direction: column;
+    margin: 8px 12px 0;
+  }
+
+  .time-filter {
+    justify-content: space-between;
+  }
+
   #content-area {
     padding-bottom: 56px;
   }
@@ -712,8 +798,19 @@ body {
   #locate-me,
   .day_div,
   #date_picker,
-  #event-list-panel {
+  #event-list-panel,
+  .time-filter {
     background: rgba(31, 41, 55, 0.96);
+  }
+
+  .time-filter.enabled {
+    background: rgba(55, 40, 40, 0.96);
+  }
+
+  .event-list-time,
+  .info-window-time {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--muted);
   }
 
   .day_div.active {

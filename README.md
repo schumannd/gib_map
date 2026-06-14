@@ -16,6 +16,8 @@ python -m http.server 8000
 
 Open [http://localhost:8000](http://localhost:8000).
 
+The map UI includes an optional **“Ab Uhrzeit”** filter (disabled by default). When enabled, it hides events that start before the selected time (default: 2 hours ago). Events without a parsed start time stay visible. The filter appears only after crawl data includes `startTime` (`daysMeta.schemaVersion` ≥ 2).
+
 The crawler:
 - fetches **7 days** of listings (today through today+6)
 - **resumes** automatically if interrupted (`data/crawl_state.json` + per-day JSON in `data/`)
@@ -71,7 +73,7 @@ The **`gh-pages`** branch is already published with recovered crawl data (~230 K
 
 To redeploy after UI changes on **`main`**, run **Actions** → **Deploy to GitHub Pages** → **Run workflow**. It uses `days.js` from **`gh-pages`** (or recovers from `0a8acf3` in git history if missing).
 
-Pushing changes to `index.html`, `main.js`, or `base.css` on **`main`** also triggers this deploy automatically.
+Pushing changes to `index.html`, `main.js`, or `base.css` on **`main`** also triggers this deploy automatically. After a successful deploy, if no crawl is already running, the **Crawl and deploy map** workflow is dispatched so schema or UI changes that need fresh data get picked up without a manual run.
 
 ### 4. Run the crawler (daily updates)
 
@@ -130,6 +132,8 @@ Page views are counted by [GoatCounter](https://www.goatcounter.com) via the scr
 | `data/YYYY-MM-DD.json` | Raw data per day (local / CI only) |
 | `data/crawl_state.json` | Resume checkpoint (temporary) |
 | `cache.pickle` | Geocoding cache (Actions cache only) |
+
+Event data schema is versioned via `daysMeta.schemaVersion` (currently **2**, includes optional `startTime` per event). Older cached crawl files are treated as incomplete and recrawled automatically.
 
 ## Troubleshooting
 

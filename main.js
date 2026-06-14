@@ -4,10 +4,13 @@ var REGION_CENTER = { lat: 52.46, lng: 13.20 };
 var REGION_DEFAULT_ZOOM = 10;
 var FAVORITES_KEY = 'gib_map_favorites';
 var STALE_DATA_HOURS = 24;
+var REQUIRED_SCHEMA_VERSION = 2;
 
 var currentMap = null;
 var currentDayIndex = 0;
 var currentSearchQuery = '';
+var timeFilterEnabled = false;
+var timeFilterValue = '';
 var selectedAddress = null;
 var markerCluster = null;
 var userLocationMarker = null;
@@ -20,6 +23,7 @@ var EXPECTED_DAYS = 7;
 window.onload = function() {
   buildDayPicker();
   updateLastUpdated();
+  setupTimeFilter();
   var dataStatus = evaluateDataStatus();
 
   if (dataStatus.type === 'missing') {
@@ -99,6 +103,57 @@ window.onload = function() {
   });
 };
 
+function hasTimeFilterSupport() {
+  return typeof daysMeta !== 'undefined' &&
+    daysMeta.schemaVersion >= REQUIRED_SCHEMA_VERSION;
+}
+
+function defaultTimeFilterValue() {
+  var now = new Date();
+  now.setMinutes(now.getMinutes() - 120);
+  return padTimeUnit(now.getHours()) + ':' + padTimeUnit(now.getMinutes());
+}
+
+function padTimeUnit(value) {
+  return String(value).padStart(2, '0');
+}
+
+function setupTimeFilter() {
+  var wrap = document.getElementById('time-filter');
+  var toggle = document.getElementById('time-filter-toggle');
+  var input = document.getElementById('time-filter-value');
+
+  if (!hasTimeFilterSupport()) {
+    wrap.hidden = true;
+    return;
+  }
+
+  wrap.hidden = false;
+  input.value = defaultTimeFilterValue();
+
+  toggle.addEventListener('click', function() {
+    timeFilterEnabled = !timeFilterEnabled;
+    toggle.setAttribute('aria-pressed', timeFilterEnabled ? 'true' : 'false');
+    toggle.classList.toggle('active', timeFilterEnabled);
+    input.disabled = !timeFilterEnabled;
+    wrap.classList.toggle('enabled', timeFilterEnabled);
+    if (timeFilterEnabled && !input.value) {
+      input.value = defaultTimeFilterValue();
+    }
+    timeFilterValue = input.value;
+    viewportShouldUpdate = false;
+    loadDate(currentDayIndex);
+  });
+
+  input.addEventListener('change', function() {
+    timeFilterValue = input.value;
+    if (timeFilterEnabled) {
+      viewportShouldUpdate = false;
+      loadDate(currentDayIndex);
+    }
+  });
+}
+
 function parseUrlState() {
   var params = new URLSearchParams(window.location.search);
   var day = params.has('day') ? parseInt(params.get('day'), 10) : null;
@@ -156,7 +211,7 @@ function refreshCurrentView(options) {
   }
 
   var day = days[currentDayIndex];
-  var filteredData = filterLocationsByQuery(day.data, currentSearchQuery);
+  var filteredData = applyAllFilters(day.data);
   viewportShouldUpdate = false;
   displayLocations(filteredData);
 
@@ -368,9 +423,10 @@ function showDataStatus(status) {
 function countEvents(data) {
   var total = 0;
   for (var address in data) {
-    if (data.hasOwnProperty(address)) {
-      total += data[address].length;
+    if (!data.hasOwnProperty(address) || address === '_meta') {
+      continue;
     }
+    total += data[address].length;
   }
   return total;
 }
@@ -378,7 +434,7 @@ function countEvents(data) {
 function countLocations(data) {
   var total = 0;
   for (var address in data) {
-    if (data.hasOwnProperty(address)) {
+    if (data.hasOwnProperty(address) && address !== '_meta') {
       total += 1;
     }
   }
@@ -405,11 +461,14 @@ function loadDate(dayIndex, options) {
   document.getElementById('map').setAttribute('aria-labelledby', 'day-tab-' + dayIndex);
   document.getElementById('subtitle').textContent = day.label + ' · ' + formatDate(day.date);
 
-  var filteredData = filterLocationsByQuery(day.data, currentSearchQuery);
+  var filteredData = applyAllFilters(day.data);
   var filteredEvents = countEvents(filteredData);
   var totalEvents = countEvents(day.data);
 
   if (currentSearchQuery) {
+    document.getElementById('event-count').textContent =
+      filteredEvents + ' / ' + totalEvents + ' Events';
+  } else if (timeFilterEnabled) {
     document.getElementById('event-count').textContent =
       filteredEvents + ' / ' + totalEvents + ' Events';
   } else {
@@ -436,6 +495,41 @@ function trackDayView(day) {
     title: day.label,
     event: true
   });
+}
+
+function applyAllFilters(locations) {
+  var filtered = filterLocationsByQuery(locations, currentSearchQuery);
+  if (timeFilterEnabled && timeFilterValue) {
+    filtered = filterLocationsByStartTime(filtered, timeFilterValue);
+  }
+  return filtered;
+}
+
+function filterLocationsByStartTime(locations, minTime) {
+  var filtered = {};
+
+  for (var address in locations) {
+    if (!locations.hasOwnProperty(address)) {
+      continue;
+    }
+
+    var matches = locations[address].filter(function(eventItem) {
+      return eventMatchesStartTime(eventItem, minTime);
+    });
+
+    if (matches.length) {
+      filtered[address] = matches;
+    }
+  }
+
+  return filtered;
+}
+
+function eventMatchesStartTime(eventItem, minTime) {
+  if (!eventItem.startTime) {
+    return true;
+  }
+  return eventItem.startTime >= minTime;
 }
 
 function filterLocationsByQuery(locations, query) {
@@ -545,7 +639,11 @@ function buildInfoWindowContent(address, spots) {
   contentHtml += '<strong>' + escapeHtml(address) + '</strong><ul>';
   for (var j = 0; j < spots.length; j++) {
     var favoriteClass = isFavorite(spots[j].url) ? ' favorite-active' : '';
-    contentHtml += '<li><a href="' + escapeHtml(spots[j].url) + '" target="_blank" rel="noopener">' +
+    contentHtml += '<li>';
+    if (spots[j].startTime) {
+      contentHtml += '<span class="info-window-time">' + escapeHtml(spots[j].startTime) + '</span> ';
+    }
+    contentHtml += '<a href="' + escapeHtml(spots[j].url) + '" target="_blank" rel="noopener">' +
       escapeHtml(spots[j].title) + '</a>' +
       '<button type="button" class="favorite-btn' + favoriteClass + '" data-url="' +
       escapeHtml(spots[j].url) + '" aria-label="Favorit speichern">★</button></li>';
@@ -592,7 +690,7 @@ function selectLocation(address, options) {
 
   if (options.openInfo !== false) {
     var day = days[currentDayIndex];
-    var filteredData = filterLocationsByQuery(day.data, currentSearchQuery);
+    var filteredData = applyAllFilters(day.data);
     openInfoWindow(marker, address, filteredData[address]);
   }
 
@@ -656,8 +754,12 @@ function buildEventList(locations) {
     }
 
     var favoriteClass = isFavorite(entry.event.url) ? ' favorite-active' : '';
+    var timeLabel = entry.event.startTime
+      ? '<span class="event-list-time">' + escapeHtml(entry.event.startTime) + '</span>'
+      : '';
     item.innerHTML =
       '<span class="event-list-title">' + escapeHtml(entry.event.title) + '</span>' +
+      timeLabel +
       '<span class="event-list-address">' + escapeHtml(entry.address) + '</span>' +
       '<span class="event-list-actions">' +
         '<span class="favorite-btn' + favoriteClass + '" data-url="' + escapeHtml(entry.event.url) +
@@ -789,7 +891,7 @@ function highlightNearestEvents(userPosition) {
     return;
   }
 
-  var dayData = filterLocationsByQuery(days[currentDayIndex].data, currentSearchQuery);
+  var dayData = applyAllFilters(days[currentDayIndex].data);
   var nearest = null;
   var nearestDistance = Infinity;
 

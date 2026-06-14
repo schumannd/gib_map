@@ -144,17 +144,22 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px 6px 10px;
+  padding: 6px 10px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   transition: border-color 0.15s ease, background 0.15s ease;
+  min-height: 44px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .time-filter.enabled {
   border-color: var(--accent);
   background: #fffaf9;
+  cursor: default;
 }
 
 #time-filter-toggle {
@@ -164,8 +169,11 @@ body {
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
-  padding: 6px 4px;
+  padding: 10px 6px;
+  margin: -6px 0;
   white-space: nowrap;
+  flex-shrink: 0;
+  touch-action: manipulation;
 }
 
 #time-filter-toggle.active {
@@ -177,13 +185,19 @@ body {
   background: transparent;
   color: var(--text);
   font-size: 0.9rem;
-  padding: 4px 0;
+  padding: 10px 4px;
+  margin: -6px 0;
   min-width: 5.5rem;
+  min-height: 44px;
+  flex: 1;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 #time-filter-value:disabled {
   opacity: 0.45;
-  cursor: not-allowed;
+  cursor: inherit;
+  pointer-events: none;
 }
 
 .event-list-time,

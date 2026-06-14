@@ -131,8 +131,7 @@ function setupTimeFilter() {
   wrap.hidden = false;
   input.value = defaultTimeFilterValue();
 
-  toggle.addEventListener('click', function() {
-    timeFilterEnabled = !timeFilterEnabled;
+  function applyTimeFilterState() {
     toggle.setAttribute('aria-pressed', timeFilterEnabled ? 'true' : 'false');
     toggle.classList.toggle('active', timeFilterEnabled);
     input.disabled = !timeFilterEnabled;
@@ -143,6 +142,42 @@ function setupTimeFilter() {
     timeFilterValue = input.value;
     viewportShouldUpdate = false;
     loadDate(currentDayIndex);
+  }
+
+  function openTimePicker() {
+    input.focus();
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+      } catch (err) {
+        // showPicker throws if not triggered by user gesture on some browsers
+      }
+    }
+  }
+
+  toggle.addEventListener('click', function(event) {
+    event.stopPropagation();
+    timeFilterEnabled = !timeFilterEnabled;
+    applyTimeFilterState();
+  });
+
+  wrap.addEventListener('click', function() {
+    if (!timeFilterEnabled) {
+      timeFilterEnabled = true;
+      applyTimeFilterState();
+      return;
+    }
+    openTimePicker();
+  });
+
+  input.addEventListener('click', function(event) {
+    event.stopPropagation();
+    if (!timeFilterEnabled) {
+      timeFilterEnabled = true;
+      applyTimeFilterState();
+      return;
+    }
+    openTimePicker();
   });
 
   input.addEventListener('change', function() {

@@ -99,6 +99,32 @@ body {
   font-size: 0.9rem;
 }
 
+#source-notice {
+  flex-shrink: 0;
+  margin: 10px 16px 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border-left: 4px solid var(--accent);
+  background: rgba(192, 57, 43, 0.08);
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+#source-notice strong {
+  font-weight: 700;
+}
+
+#source-notice a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+#source-notice a:hover {
+  text-decoration: underline;
+}
+
 #stats {
   display: flex;
   gap: 10px;
@@ -696,6 +722,11 @@ body {
     margin: 8px 12px 0;
   }
 
+  #source-notice {
+    margin: 8px 12px 0;
+    font-size: 0.84rem;
+  }
+
   .time-filter {
     justify-content: space-between;
   }
@@ -813,8 +844,14 @@ body {
   .day_div,
   #date_picker,
   #event-list-panel,
-  .time-filter {
+  .time-filter,
+  #source-notice {
     background: rgba(31, 41, 55, 0.96);
+  }
+
+  #source-notice {
+    background: rgba(192, 57, 43, 0.15);
+    border-left-color: var(--accent);
   }
 
   .time-filter.enabled {

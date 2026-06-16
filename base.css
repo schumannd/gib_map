@@ -91,28 +91,23 @@ body {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 0.9rem;
+  line-height: 1.35;
 }
 
-#source-notice {
-  flex-shrink: 0;
-  margin: 10px 16px 0;
-  padding: 10px 14px;
-  border-radius: 12px;
-  border-left: 4px solid var(--accent);
-  background: rgba(192, 57, 43, 0.08);
-  color: var(--text);
-  font-size: 0.88rem;
-  line-height: 1.45;
+#source-attribution {
+  font-size: 0.78rem;
+  opacity: 0.8;
 }
 
-#source-notice a {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-#source-notice a:hover {
+#source-attribution a {
+  color: inherit;
   text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+#source-attribution a:hover {
+  opacity: 1;
+  color: var(--text);
 }
 
 #stats {
@@ -712,11 +707,6 @@ body {
     margin: 8px 12px 0;
   }
 
-  #source-notice {
-    margin: 8px 12px 0;
-    font-size: 0.84rem;
-  }
-
   .time-filter {
     justify-content: space-between;
   }
@@ -834,14 +824,8 @@ body {
   .day_div,
   #date_picker,
   #event-list-panel,
-  .time-filter,
-  #source-notice {
+  .time-filter {
     background: rgba(31, 41, 55, 0.96);
-  }
-
-  #source-notice {
-    background: rgba(192, 57, 43, 0.15);
-    border-left-color: var(--accent);
   }
 
   .time-filter.enabled {

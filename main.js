@@ -468,7 +468,7 @@ function loadDate(dayIndex, options) {
   });
 
   document.getElementById('map').setAttribute('aria-labelledby', 'day-tab-' + dayIndex);
-  document.getElementById('subtitle').textContent = day.label + ' · ' + formatDate(day.date);
+  document.getElementById('subtitle-day').textContent = day.label + ' · ' + formatDate(day.date);
 
   var filteredData = applyAllFilters(day.data);
   var filteredEvents = countEvents(filteredData);

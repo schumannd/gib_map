@@ -205,7 +205,7 @@ def bootstrap_data_from_days_js(window_days):
 
 
 def reconcile_day_files_with_days_js(window_days):
-    """Mark cached day files complete when they match the deployed days.js snapshot."""
+    """Restore cached day files from the deployed days.js snapshot (no recrawl)."""
     days_meta = load_days_meta()
     if days_meta.get('schemaVersion', 0) < EVENT_SCHEMA_VERSION:
         return 0
@@ -225,28 +225,26 @@ def reconcile_day_files_with_days_js(window_days):
         if not day_entry:
             continue
 
-        path = day_json_path(target_date)
-        if not os.path.exists(path):
-            continue
-
-        try:
-            with open(path, 'r') as f:
-                disk_data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            continue
-
-        if get_day_file_schema(disk_data) >= EVENT_SCHEMA_VERSION:
-            continue
-
         reference_data = day_entry.get('data', {})
-        if day_data_fingerprint(disk_data) != day_data_fingerprint(reference_data):
+        if not reference_data:
             continue
 
-        stamp_day_schema(disk_data)
+        path = day_json_path(target_date)
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    disk_data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                disk_data = {}
+            if get_day_file_schema(disk_data) >= EVENT_SCHEMA_VERSION:
+                continue
+
+        hydrated = json.loads(json.dumps(reference_data))
+        stamp_day_schema(hydrated)
         with open(path, 'w') as f:
-            json.dump(disk_data, f)
-        events, locations = day_data_fingerprint(disk_data)
-        log('Reconciled {0} with days.js ({1} events, {2} locations)'.format(
+            json.dump(hydrated, f)
+        events, locations = day_data_fingerprint(hydrated)
+        log('Reconciled {0} from days.js ({1} events, {2} locations)'.format(
             date_str, events, locations))
         reconciled += 1
 

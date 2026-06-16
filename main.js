@@ -22,7 +22,6 @@ var EXPECTED_DAYS = 7;
 
 window.onload = function() {
   buildDayPicker();
-  updateLastUpdated();
   setupTimeFilter();
   var dataStatus = evaluateDataStatus();
 
@@ -265,31 +264,6 @@ function getDataGeneratedAt() {
   return null;
 }
 
-function updateLastUpdated() {
-  var el = document.getElementById('last-updated');
-  if (!el) {
-    return;
-  }
-
-  var generatedAt = getDataGeneratedAt();
-  if (!generatedAt || isNaN(generatedAt.getTime())) {
-    el.textContent = '';
-    return;
-  }
-
-  el.textContent = 'Stand: ' + formatDateTime(generatedAt);
-}
-
-function formatDateTime(date) {
-  return date.toLocaleString('de-DE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-
 function handleDayPickerKeydown(event) {
   var buttons = Array.prototype.slice.call(document.querySelectorAll('.day_div'));
   if (!buttons.length) {
@@ -413,7 +387,7 @@ function evaluateDataStatus() {
   if (generatedAt && !isNaN(generatedAt.getTime())) {
     var ageHours = (Date.now() - generatedAt.getTime()) / 3600000;
     if (ageHours > STALE_DATA_HOURS) {
-      messages.push('Datenstand älter als ' + STALE_DATA_HOURS + ' Stunden (' + formatDateTime(generatedAt) + ').');
+      messages.push('Die Event-Daten sind möglicherweise veraltet.');
       bannerClass = 'warning';
     }
   }

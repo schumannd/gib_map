@@ -96,7 +96,7 @@ Each run covers a rolling **7-day window** (today through today+6). On a normal 
 
 If the cache is cold or the window shifted completely, more days may be recrawled. Interrupted runs resume via `data/crawl_state.json`.
 
-The workflow writes a **crawl summary** (events/locations per day) to the Actions job summary. `days.js` includes a `daysMeta.generatedAt` timestamp shown in the UI.
+The workflow writes a **crawl summary** (events/locations per day) to the Actions job summary. `days.js` includes a `daysMeta.generatedAt` timestamp used internally for stale-data checks.
 
 ### 5. Google Maps API key
 

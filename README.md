@@ -37,7 +37,7 @@ Rough math for a **first run** (empty geocoding cache):
 
 **Expect 2–4 hours** for the first full 7-day crawl on GitHub Actions.
 
-**Later runs** are much faster: the geocoding cache skips most lookups. Daily runs often finish in **30–60 minutes**.
+**Later runs** are much faster: the geocoding cache skips most lookups. Daily runs often finish in **30–60 minutes** when only the new day is crawled (older days are restored from the Actions cache and reconciled against the deployed `days.js`).
 
 The workflow timeout is 6 hours.
 

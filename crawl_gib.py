@@ -82,6 +82,11 @@ def main():
     if bootstrapped:
         log('Bootstrapped {0} day file(s) from days.js'.format(bootstrapped))
 
+    reconciled = reconcile_day_files_with_days_js(CRAWL_DAYS)
+    if reconciled:
+        log('Reconciled {0} day file(s) with days.js (schema v{1})'.format(
+            reconciled, EVENT_SCHEMA_VERSION))
+
     clean_stale_day_files(CRAWL_DAYS)
     log_data_dir_status(CRAWL_DAYS)
     crawl_days(CRAWL_DAYS)
@@ -138,10 +143,37 @@ def load_days_js():
     return json.loads(content)
 
 
+def load_days_meta():
+    if not os.path.exists(DAYS_JS_FILE):
+        return {}
+
+    with open(DAYS_JS_FILE, 'r') as f:
+        content = f.read().strip()
+
+    if ';\nvar daysMeta' not in content:
+        return {}
+
+    meta_part = content.split(';\nvar daysMeta', 1)[1].strip()
+    meta_part = meta_part.split('=', 1)[1].strip().rstrip(';')
+    return json.loads(meta_part)
+
+
+def day_data_fingerprint(data):
+    event_count = 0
+    location_count = 0
+    for _, tip_list in iter_day_data(data):
+        location_count += 1
+        event_count += len(tip_list)
+    return event_count, location_count
+
+
 def bootstrap_data_from_days_js(window_days):
     days_array = load_days_js()
     if not days_array:
         return 0
+
+    days_meta = load_days_meta()
+    stamp_schema = days_meta.get('schemaVersion', 0) >= EVENT_SCHEMA_VERSION
 
     today = date.today()
     keep_dates = {
@@ -159,8 +191,12 @@ def bootstrap_data_from_days_js(window_days):
         if os.path.exists(path):
             continue
 
+        data = json.loads(json.dumps(day.get('data', {})))
+        if stamp_schema:
+            stamp_day_schema(data)
+
         with open(path, 'w') as f:
-            json.dump(day.get('data', {}), f)
+            json.dump(data, f)
         log('Bootstrapped {0} from days.js ({1} locations)'.format(
             os.path.basename(path), len(day.get('data', {}))))
         bootstrapped += 1
@@ -168,21 +204,81 @@ def bootstrap_data_from_days_js(window_days):
     return bootstrapped
 
 
-def is_day_file_complete(target_date):
+def reconcile_day_files_with_days_js(window_days):
+    """Mark cached day files complete when they match the deployed days.js snapshot."""
+    days_meta = load_days_meta()
+    if days_meta.get('schemaVersion', 0) < EVENT_SCHEMA_VERSION:
+        return 0
+
+    days_array = load_days_js()
+    if not days_array:
+        return 0
+
+    days_by_date = {day['date']: day for day in days_array if day.get('date')}
+    today = date.today()
+    reconciled = 0
+
+    for day_offset in range(window_days):
+        target_date = today + timedelta(days=day_offset)
+        date_str = target_date.isoformat()
+        day_entry = days_by_date.get(date_str)
+        if not day_entry:
+            continue
+
+        path = day_json_path(target_date)
+        if not os.path.exists(path):
+            continue
+
+        try:
+            with open(path, 'r') as f:
+                disk_data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        if get_day_file_schema(disk_data) >= EVENT_SCHEMA_VERSION:
+            continue
+
+        reference_data = day_entry.get('data', {})
+        if day_data_fingerprint(disk_data) != day_data_fingerprint(reference_data):
+            continue
+
+        stamp_day_schema(disk_data)
+        with open(path, 'w') as f:
+            json.dump(disk_data, f)
+        events, locations = day_data_fingerprint(disk_data)
+        log('Reconciled {0} with days.js ({1} events, {2} locations)'.format(
+            date_str, events, locations))
+        reconciled += 1
+
+    return reconciled
+
+
+def get_day_file_incomplete_reason(target_date):
     path = day_json_path(target_date)
     if not os.path.exists(path):
-        return False
+        return 'missing file'
 
     try:
         with open(path, 'r') as f:
             data = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return False
+    except (json.JSONDecodeError, OSError) as err:
+        return 'unreadable ({0})'.format(err)
 
-    if get_day_file_schema(data) < EVENT_SCHEMA_VERSION:
-        return False
+    if not list(iter_day_data(data)):
+        return 'no locations'
 
-    return bool(list(iter_day_data(data))) and count_events_in_data(data) > 0
+    if count_events_in_data(data) <= 0:
+        return 'no events'
+
+    schema = get_day_file_schema(data)
+    if schema < EVENT_SCHEMA_VERSION:
+        return 'schema v{0} (need v{1})'.format(schema, EVENT_SCHEMA_VERSION)
+
+    return None
+
+
+def is_day_file_complete(target_date):
+    return get_day_file_incomplete_reason(target_date) is None
 
 
 def log_data_dir_status(window_days):
@@ -208,7 +304,8 @@ def log_data_dir_status(window_days):
             log('  {0}: ready ({1} events, {2} locations)'.format(
                 date_str, count_events_in_data(data), len(list(iter_day_data(data)))))
         else:
-            log('  {0}: missing or incomplete'.format(date_str))
+            reason = get_day_file_incomplete_reason(target_date) or 'unknown'
+            log('  {0}: missing or incomplete ({1})'.format(date_str, reason))
 
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, 'r') as f:

@@ -364,7 +364,7 @@ function evaluateDataStatus() {
   var firstDate = days[0].date;
   var dayOffset = daysBetweenIsoDates(today, firstDate);
 
-  if (dayOffset < 0) {
+  if (dayOffset < -1) {
     messages.push('Daten sind veraltet: ältester Tag ist ' + formatDate(firstDate) + '.');
     bannerClass = 'warning';
   } else if (dayOffset > 0) {
@@ -377,10 +377,6 @@ function evaluateDataStatus() {
   } else {
     var expectedLastDate = addDaysToIsoDate(today, EXPECTED_DAYS - 1);
     var lastDate = days[days.length - 1].date;
-    if (lastDate !== expectedLastDate) {
-      messages.push('Daten enden am ' + formatDate(lastDate) + ' statt ' + formatDate(expectedLastDate) + '.');
-      bannerClass = 'warning';
-    }
   }
 
   var generatedAt = getDataGeneratedAt();

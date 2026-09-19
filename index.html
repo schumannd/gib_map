@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gratis in Berlin – Karte</title>
+  <meta name="description" content="Kostenlose Events in Berlin und Potsdam auf der Karte – Daten von gratis-in-berlin.de." />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Gratis in Berlin – Karte" />
+  <meta property="og:description" content="Kostenlose Events in Berlin und Potsdam auf der Karte – 7 Tage im Überblick." />
+  <meta property="og:url" content="https://schumannd.github.io/gib_map/" />
+  <meta property="og:locale" content="de_DE" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Gratis in Berlin – Karte" />
+  <meta name="twitter:description" content="Kostenlose Events in Berlin und Potsdam auf der Karte." />
+  <link rel="stylesheet" type="text/css" href="base.css" />
+  <script>
+    window.gm_authFailure = function() {
+      window.mapLoadError =
+        'Google Maps API-Schlüssel abgelehnt. In der Google Cloud Console ' +
+        'deine github.io-URL erlauben (z. B. https://DEIN_USER.github.io/*).';
+    };
+
+  </script>
+  <script data-goatcounter="https://schumannd.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+  <!-- Restrict this key to https://YOUR_USER.github.io/* in Google Cloud Console -->
+  <script src="https://maps.google.com/maps/api/js?key=AIzaSyCU4sCwBnNpGJfqTidGUA4ViiUuRSDJ_B8&libraries=geometry" type="text/javascript"></script>
+  <script src="https://unpkg.com/@googlemaps/markerclusterer@2.5.3/dist/index.min.js"></script>
+  <script src="days.js"></script>
+  <script src="main.js"></script>
+</head>
+<body>
+  <a href="#map" class="skip-link">Zum Karteninhalt springen</a>
+
+  <header id="header">
+    <button id="header-toggle" type="button" aria-expanded="true" aria-controls="header-panel">
+      Menü
+    </button>
+    <div id="header-panel">
+      <div id="header-content">
+        <h1>Gratis in Berlin</h1>
+        <p id="subtitle">
+          <span id="subtitle-day">Kostenlose Events in Berlin und Potsdam</span><span id="source-attribution"> · Kartenansicht der Events von <a href="https://www.gratis-in-berlin.de/" target="_blank" rel="noopener">gratis-in-berlin.de</a></span>
+        </p>
+      </div>
+      <div id="stats">
+        <span id="event-count">– Events</span>
+        <span id="location-count">– Orte</span>
+      </div>
+    </div>
+  </header>
+
+  <div id="filters-row">
+    <div id="search-bar">
+      <label for="event-search">Events filtern</label>
+      <input id="event-search" type="search" placeholder="Titel durchsuchen…" autocomplete="off" />
+      <button id="clear-search" type="button" hidden aria-label="Suche löschen">×</button>
+    </div>
+    <div id="time-filter" class="time-filter" hidden>
+      <button id="time-filter-toggle" type="button" aria-pressed="false" aria-controls="time-filter-value">
+        Ab Uhrzeit
+      </button>
+      <input id="time-filter-value" type="time" aria-label="Früheste Startzeit" disabled />
+    </div>
+  </div>
+
+  <nav id="date_picker" aria-label="Tag auswählen" role="tablist">
+    <div id="date_picker-handle" aria-hidden="true"></div>
+  </nav>
+
+  <div id="data-status" class="status-banner" hidden role="status"></div>
+
+  <div id="empty-state" hidden>
+    <p id="empty-state-title">Noch keine Daten geladen.</p>
+    <p id="empty-state-message">Führe <code>python crawl_gib.py</code> aus, um Events zu laden.</p>
+  </div>
+
+  <div id="content-area" hidden>
+    <aside id="event-list-panel" aria-label="Eventliste">
+      <div id="event-list-header">
+        <h2>Events</h2>
+        <button id="list-toggle" type="button" aria-expanded="false" aria-controls="event-list">
+          Liste
+        </button>
+      </div>
+      <div id="event-list"></div>
+    </aside>
+
+    <div id="map-wrap">
+      <div id="map-error" class="map-error" hidden role="alert"></div>
+      <div id="map" role="tabpanel" aria-labelledby="day-tab-0" tabindex="-1"></div>
+
+      <div id="legend" aria-label="Legende">
+        <span class="legend-item"><span class="legend-dot legend-dot-exact" aria-hidden="true"></span> Genauer Ort</span>
+        <span class="legend-item"><span class="legend-dot legend-dot-approx" aria-hidden="true"></span> Ungefährer Ort</span>
+      </div>
+
+      <button id="locate-me" type="button" aria-label="Meine Position anzeigen">◎</button>
+    </div>
+  </div>
+
+  <footer id="site-footer">
+    <a href="https://www.gratis-in-berlin.de/" target="_blank" rel="noopener">Zur Quelle: gratis-in-berlin.de</a>
+  </footer>
+</body>
+</html>
